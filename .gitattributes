@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.sh text eol=lf
+*.swift text eol=lf
+*.png binary
+*.webp binary
+*.jpg binary
+*.icns binary
+*.wav binary
+*.caf binary
+*.dmg binary
