@@ -68,6 +68,7 @@ public struct OrbexTimer: Codable, Equatable, Identifiable, Sendable {
     /// Nombre para mostrar: la etiqueta, la fase del pomodoro o "Timer".
     public var displayName: String {
         if let p = pomodoro {
+            if isFinished { return "Pomodoro" }
             return p.phase == .focus ? "\(p.phase.title) \(p.focusNumber)/\(p.cycles)" : p.phase.title
         }
         if let label, !label.trimmingCharacters(in: .whitespaces).isEmpty { return label }
