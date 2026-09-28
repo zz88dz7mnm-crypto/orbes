@@ -114,8 +114,23 @@ final class CommandExecutor {
         case .pomodoro:
             TimersStore.shared.startPomodoro()
             return CommandResult(message: "Pomodoro: 25 min de foco. ¡Vamos! 🍅")
-        case .remind, .scheduledAction, .remember:
-            return CommandResult(message: "Eso llega en la Fase 4 🙂")
+        case .remind(let date, let text):
+            SchedulerStore.shared.addReminder(at: date, text: text)
+            OrbexBus.play(.noteSaved)
+            return CommandResult(message: "Listo, te aviso a las \(SchedulerStore.time(date)): \(text) ⏰")
+        case .scheduledAction(let date, let name):
+            SchedulerStore.shared.addAction(at: date, name: name)
+            OrbexBus.play(.noteSaved)
+            if allowlist.action(named: name) == nil {
+                return CommandResult(message: "Anotado para las \(SchedulerStore.time(date)): \(name). No está en tu lista de acciones, así que a esa hora te pido confirmación.")
+            }
+            return CommandResult(message: "Listo, a las \(SchedulerStore.time(date)) hago \(name) ⏰")
+        case .remember(let fact):
+            if MemoryStore.shared.add(fact) {
+                OrbexBus.play(.noteSaved)
+                return CommandResult(message: "Me lo acuerdo: \(fact) 🧠")
+            }
+            return CommandResult(message: "Eso ya lo sabía: \(fact) 🙂")
         case .showClock:
             OrbexBus.perform("clock")
             return CommandResult(message: "Modo reloj 🕰")
