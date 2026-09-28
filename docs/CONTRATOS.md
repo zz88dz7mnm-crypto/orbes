@@ -3,6 +3,8 @@
 Cada módulo es autocontenido. El agente principal los conecta en `AppModel`, la isla y Configuración.
 
 ## Reglas comunes
+- **Regla de corte (ahorro de tokens):** cada subagente termina apenas sus entregables están subidos y revisados UNA vez (`swiftc -parse` + lectura propia). Sin extras, sin pulir en bucle, sin esperar a otros agentes.
+- Verificación disponible en la nube: Docker con Swift 6.1 (`mirror.gcr.io/library/swift:6.1-noble`): `swiftc -parse <archivo>` para la app; `swift test` para `OrbexCore` (copiando `Sources/OrbexCore` + `Tests/` a un paquete aparte).
 - Swift 5 language mode (tools 5.9), macOS 14 mínimo, sin dependencias externas. **No se puede compilar en la nube**: revisar cada firma de API a mano.
 - ⚠️ No usar nombres que choquen con Foundation/SwiftUI: `Expression`, `Predicate`, `Timer` (usar `OrbexTimer`), `Notification`, `Task`, `Color`, `Font`, `Text`, `Image`, `Label`, `Section`, `Group`, `Link`, `Menu`, `Picker`, `Toggle`, `Stepper`, `Gauge`, `Grid`.
 - `OrbexCore` solo importa Foundation y debe compilar en Linux. Lógica ahí + pruebas XCTest.
