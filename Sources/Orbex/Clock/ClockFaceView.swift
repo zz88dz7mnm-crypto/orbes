@@ -23,7 +23,9 @@ struct ClockFaceView: View {
                                                compact: compact, accent: theme.accent, calm: theme.reduceMotion,
                                                date: Date(), t: CACurrentMediaTime(),
                                                look: { p in lookTarget(p, global) })
-                    painter.draw(&ctx, size: size)
+                    var themed = painter
+                    themed.material = OrbexMaterial(theme: theme.id)
+                    themed.draw(&ctx, size: size)
                 }
             }
         }
@@ -47,6 +49,7 @@ private struct ClockPainter {
     let compact: Bool
     let accent: Color
     let calm: Bool
+    var material: OrbexMaterial = .glass
     let date: Date
     let t: Double
     let look: (CGPoint) -> (x: Double, y: Double)?
@@ -66,7 +69,8 @@ private struct ClockPainter {
             R -= lw + max(1.5, R * 0.025)
         }
         let a = ClockMath.angles(for: date, smooth: true)
-        let f = CharacterBrain.shared.frame(at: t, lookTarget: look(c))
+        var f = CharacterBrain.shared.frame(at: t, lookTarget: look(c))
+        f.material = material
         switch face {
         case .classic: classic(&ctx, c: c, R: R, a: a, f: f)
         case .retroWall: retro(&ctx, c: c, R: R, a: a, f: f)
@@ -92,7 +96,7 @@ private struct ClockPainter {
         g.translateBy(x: c.x, y: c.y)
         let k = calm ? 0.2 : 0.5
         g.scaleBy(x: CGFloat(1 + (f.scaleX - 1) * k), y: CGFloat(1 + (f.scaleY - 1) * k))
-        if body { OrbexPainter.drawBody(&g, D: D, tint: f.tint.rgb) }
+        if body { OrbexPainter.drawBody(&g, D: D, tint: f.tint.rgb, material: f.material) }
         var e = g
         e.translateBy(x: 0, y: -eyeLift + CGFloat(f.offsetY) * D * 0.2)
         OrbexPainter.drawEyes(&e, f: f, D: D * eyeScale)
