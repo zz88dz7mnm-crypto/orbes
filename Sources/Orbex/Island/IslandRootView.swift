@@ -160,14 +160,8 @@ struct WingsContent: View {
                     .frame(width: wing, height: notchHeight)
                 Spacer(minLength: 0)
                 // Alita derecha: indicador.
-                Group {
-                    if attention {
-                        AttentionBadge()
-                    } else {
-                        ActivitySpinner(color: theme.accent)
-                    }
-                }
-                .frame(width: wing, height: notchHeight)
+                RightWingIndicator(attention: attention, accent: theme.accent)
+                    .frame(width: wing, height: notchHeight)
             }
             .frame(height: notchHeight)
 
@@ -185,6 +179,24 @@ struct WingsContent: View {
     private var statusText: String {
         if !model.statusLine.isEmpty { return model.statusLine }
         return attention ? "Te necesito — tocá para ver" : "Trabajando…"
+    }
+}
+
+/// Alita derecha: aviso si algo necesita al usuario; si hay sesiones de Claude Code, su contador;
+/// si no, un spinner de actividad.
+struct RightWingIndicator: View {
+    let attention: Bool
+    let accent: Color
+    @ObservedObject private var sessions = SessionsStore.shared
+
+    var body: some View {
+        if attention {
+            AttentionBadge()
+        } else if !sessions.sessions.isEmpty {
+            SessionsBadge()
+        } else {
+            ActivitySpinner(color: accent)
+        }
     }
 }
 
