@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 // Integraciones de ORBEX (informe §9.11): modelos, pedidos HTTP de SOLO LECTURA y
 // traductores puros (JSON → filas para la isla). Sin red acá: la app hace los pedidos.
@@ -223,10 +226,17 @@ enum IntegrationDates {
     static func epoch(_ n: Double) -> Date { Date(timeIntervalSince1970: n > 1e11 ? n / 1000 : n) }
 
     static func relative(_ d: Date, now: Date) -> String {
+        #if canImport(Darwin)
         let f = RelativeDateTimeFormatter()
         f.locale = Locale(identifier: "es")
         f.unitsStyle = .short
         return f.localizedString(for: d, relativeTo: now)
+        #else
+        let minutes = Int(now.timeIntervalSince(d) / 60)
+        if minutes < 60 { return "hace \(max(0, minutes)) min" }
+        if minutes < 1440 { return "hace \(minutes / 60) h" }
+        return "hace \(minutes / 1440) d"
+        #endif
     }
 }
 

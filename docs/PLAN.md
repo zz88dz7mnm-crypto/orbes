@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 97 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 98 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-97%25-3fa7ff?style=for-the-badge" alt="Avance 97 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-98%25-3fa7ff?style=for-the-badge" alt="Avance 98 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 97 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 98 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: Cierre: pasada única de corrección de errores + instrucciones de instalación</h3>
+<h3 align="center">🛠️ Ahora mismo: Cierre: corrección de errores de la app + INSTALAR.md</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 23:58 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 23:59 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -21,7 +21,7 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 ---
 
 ## Verificación automática (en la nube)
-- `OrbexCore` se compila y se prueba con **Swift 6.1 en Linux** (Docker `mirror.gcr.io/library/swift:6.1-noble`): **34/34 pruebas OK** (28/09/2026).
+- `OrbexCore` se compila y se prueba con **Swift 6.1 en Linux** (Docker `mirror.gcr.io/library/swift:6.1-noble`): **116/116 pruebas OK** (cierre, 29/09/2026).
 - El código de la app (AppKit/SwiftUI) se revisa con `swiftc -parse` (sintaxis). La compilación completa necesita macOS (tu Mac o GitHub Actions).
 
 ## Cómo retomar (si se corta la sesión)
@@ -81,10 +81,13 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com: solo lectura, clave en Keychain, interruptor, color de ORBEX
 - [x] Página Servicios y Música en la isla; Configuración › Música e Integraciones
 
-## Cierre (3 %)
-- [ ] Revisión completa del código
-- [ ] Checklist de criterios de aceptación por fase
-- [ ] Instrucciones finales de instalación (la instalación en la Mac la hace el dueño con Claude, al final)
+## Cierre (3 %) — en curso
+- [x] `OrbexCore` compila con Swift 6.1 y pasan **116/116 pruebas** (Linux, Docker)
+- [x] `orbex-hook` compila y nunca bloquea a Claude Code (probado en Linux)
+- [~] Pasada única de corrección de errores del código de la app (AppKit/SwiftUI) — 3 revisores en paralelo
+- [ ] `INSTALAR.md`: instrucciones paso a paso para que Claude la instale en tu Mac (y qué hacer si algo no compila)
+- [ ] Checklist final de criterios de aceptación por fase (`docs/fases.md`)
+- [ ] README final y 100 %
 
 ---
 
@@ -111,3 +114,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 82 % | Fase 4 completa: reloj flotante con 3 esferas, acciones programadas, memoria |
 | 28/09/2026 | 90 % | Fase 5 completa: temas Liquid Glass, macOS limpio y Y2K con sus sonidos |
 | 28/09/2026 | 97 % | Fase 6 completa: Spotify + baile al ritmo + 7 integraciones |
+| 28/09/2026 | 98 % | Cierre: OrbexCore compila y pasan 116/116 pruebas |
