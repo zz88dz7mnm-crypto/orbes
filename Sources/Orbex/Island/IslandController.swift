@@ -95,6 +95,13 @@ final class IslandController {
         return CGRect(x: place.notchCenterX - w / 2, y: place.topY - h, width: w, height: h)
     }
 
+    /// Rectángulo del notch en pantalla (origen y destino de la animación del reloj).
+    func notchRectOnScreen() -> CGRect {
+        guard let place = placement else { return .zero }
+        let w = CGFloat(place.notch.width), h = CGFloat(place.notch.height)
+        return CGRect(x: place.notchCenterX - w / 2, y: place.topY - h, width: w, height: h)
+    }
+
     // MARK: - Sondeo del mouse (clics que pasan + hover)
 
     private func schedulePolling() {
@@ -190,6 +197,10 @@ final class IslandController {
         }
         if state == .clock {
             panel.ignoresMouseEvents = true
+            // Fase 4: ORBEX se despega del notch y se vuelve reloj flotante.
+            if !ClockController.shared.isVisible { ClockController.shared.show(from: notchRectOnScreen()) }
+        } else if ClockController.shared.isVisible {
+            ClockController.shared.hide(to: notchRectOnScreen())
         }
     }
 

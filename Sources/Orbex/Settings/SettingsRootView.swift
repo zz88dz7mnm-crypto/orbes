@@ -3,8 +3,7 @@ import OrbexCore
 
 /// Secciones de Configuración. Las de fases siguientes se suman cuando llegue su fase.
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case personaje, isla, tema, sonidos, asistente, claudeCode, timers, notas, acciones, general, accesibilidad, acercaDe
-    // Fase 4: reloj (esfera, tamaño, transparencia, anclaje, tic-tac) y memoria (dentro de Notas)
+    case personaje, isla, tema, sonidos, reloj, asistente, claudeCode, timers, notas, acciones, programadas, memoria, general, accesibilidad, acercaDe
     // Fase 6: integraciones (cada servicio con su interruptor y su clave en el Keychain)
     // Fase 6 / cierre: privacidad (qué ve ORBEX, qué se guarda, permisos de macOS)
 
@@ -16,6 +15,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .isla: return "Isla"
         case .tema: return "Tema"
         case .sonidos: return "Sonidos"
+        case .reloj: return "Reloj"
+        case .programadas: return "Acciones programadas"
+        case .memoria: return "Memoria"
         case .asistente: return "Asistente (Claude)"
         case .claudeCode: return "Claude Code"
         case .timers: return "Timers"
@@ -33,6 +35,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .isla: return "rectangle.topthird.inset.filled"
         case .tema: return "paintpalette"
         case .sonidos: return "speaker.wave.2"
+        case .reloj: return "clock"
+        case .programadas: return "calendar.badge.clock"
+        case .memoria: return "brain"
         case .asistente: return "sparkles"
         case .claudeCode: return "terminal"
         case .timers: return "timer"
@@ -75,6 +80,9 @@ struct SettingsRootView: View {
         case .isla: IslaSettingsView()
         case .tema: TemaSettingsView()
         case .sonidos: SonidosSettingsView()
+        case .reloj: ClockSettingsView()
+        case .programadas: ScheduledActionsSettingsView()
+        case .memoria: MemorySettingsView()
         case .asistente: AssistantSettingsView()
         case .claudeCode: ClaudeCodeSettingsView()
         case .timers: TimersSettingsView()

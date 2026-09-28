@@ -22,6 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsWindowController.shared.startObserving()
         startPhase2Modules()
         SessionsStore.shared.start()   // Fase 3: hooks de Claude Code / Codex
+        SchedulerStore.shared.start()  // Fase 4: recordatorios y acciones a hora puntual
+        _ = MemoryStore.shared         // Fase 4: memoria local (contexto del asistente)
 
         // Aplicar ajustes que dependen del sistema (por si cambiaron fuera de la app).
         if model.settings.launchAtLogin != LaunchAtLogin.isEnabled {
