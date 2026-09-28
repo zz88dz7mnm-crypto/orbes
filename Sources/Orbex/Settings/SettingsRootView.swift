@@ -3,8 +3,7 @@ import OrbexCore
 
 /// Secciones de Configuración. Las de fases siguientes se suman cuando llegue su fase.
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case personaje, isla, tema, sonidos, asistente, timers, notas, acciones, general, accesibilidad, acercaDe
-    // Fase 3: claudeCode (hooks con diff, terminal preferida, qué eventos mostrar)
+    case personaje, isla, tema, sonidos, asistente, claudeCode, timers, notas, acciones, general, accesibilidad, acercaDe
     // Fase 4: reloj (esfera, tamaño, transparencia, anclaje, tic-tac) y memoria (dentro de Notas)
     // Fase 6: integraciones (cada servicio con su interruptor y su clave en el Keychain)
     // Fase 6 / cierre: privacidad (qué ve ORBEX, qué se guarda, permisos de macOS)
@@ -18,6 +17,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .tema: return "Tema"
         case .sonidos: return "Sonidos"
         case .asistente: return "Asistente (Claude)"
+        case .claudeCode: return "Claude Code"
         case .timers: return "Timers"
         case .notas: return "Notas"
         case .acciones: return "Acciones y apps"
@@ -34,6 +34,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .tema: return "paintpalette"
         case .sonidos: return "speaker.wave.2"
         case .asistente: return "sparkles"
+        case .claudeCode: return "terminal"
         case .timers: return "timer"
         case .notas: return "note.text"
         case .acciones: return "bolt.circle"
@@ -75,6 +76,7 @@ struct SettingsRootView: View {
         case .tema: TemaSettingsView()
         case .sonidos: SonidosSettingsView()
         case .asistente: AssistantSettingsView()
+        case .claudeCode: ClaudeCodeSettingsView()
         case .timers: TimersSettingsView()
         case .notas: NotesSettingsView()
         case .acciones: ActionsSettingsView()

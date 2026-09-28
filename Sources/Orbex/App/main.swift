@@ -4,8 +4,7 @@ import AppKit
 let arguments = CommandLine.arguments
 
 if arguments.contains("--uninstall-hooks") {
-    // Fase 3: acá se van a desinstalar los hooks de Claude Code / Codex.
-    print("ORBEX: todavía no hay hooks instalados (llegan en la Fase 3).")
+    HooksCLI.uninstallAll()
     exit(0)
 }
 

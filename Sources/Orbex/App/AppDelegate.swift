@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OrbexHotKeys.installDefaults()
         SettingsWindowController.shared.startObserving()
         startPhase2Modules()
+        SessionsStore.shared.start()   // Fase 3: hooks de Claude Code / Codex
 
         // Aplicar ajustes que dependen del sistema (por si cambiaron fuera de la app).
         if model.settings.launchAtLogin != LaunchAtLogin.isEnabled {

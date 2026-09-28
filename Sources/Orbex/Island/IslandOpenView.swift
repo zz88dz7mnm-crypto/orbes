@@ -10,7 +10,7 @@ struct IslandOpenView: View {
 
     /// Páginas disponibles. Las fases siguientes agregan las suyas acá
     /// (Fase 3: .sessions · Fase 6: .music, .integrations).
-    private var pages: [IslandPage] { [.home, .timers, .notes] }
+    private var pages: [IslandPage] { [.home, .sessions, .timers, .notes] }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,6 +48,8 @@ struct IslandOpenView: View {
                 switch model.page {
                 case .home:
                     HomePageView(model: model)
+                case .sessions:
+                    SessionsPageView()
                 case .timers:
                     TimersPageView()
                 case .notes:
