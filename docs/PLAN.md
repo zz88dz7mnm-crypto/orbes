@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 17 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 18 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-17%25-3fa7ff?style=for-the-badge" alt="Avance 17 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-18%25-3fa7ff?style=for-the-badge" alt="Avance 18 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓░░░░░░░░░░░░░░░░░ 17 / 100</h3>
+<h3 align="center">▓▓▓▓░░░░░░░░░░░░░░░░ 18 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: cerrar la Fase 1: isla (principal) + empaquetado, servicios del sistema y configuración (3 subagentes)</h3>
+<h3 align="center">🛠️ Ahora mismo: ventana de la isla (principal) + empaquetado, servicios del sistema y configuración (3 subagentes, solo Fase 1)</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 22:50 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 22:52 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -81,3 +81,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 14 % | OrbexCore + pruebas, tema Liquid Glass, cerebro del personaje, Info.plist |
 | 28/09/2026 | 16 % | Dibujo de ORBEX por código: vidrio, ojos, brazos-gota, piernas, extras |
 | 28/09/2026 | 17 % | Contratos entre módulos + 4 subagentes nuevos |
+| 28/09/2026 | 18 % | AppModel, marcador de orbex-hook, subagentes de la Fase 1 |
