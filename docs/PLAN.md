@@ -9,6 +9,15 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 
 ---
 
+## Cómo retomar (si se corta la sesión)
+1. Leé este archivo: lo marcado `[x]` ya está en el repo; `[~]` quedó a medias.
+2. Mirá `git log --oneline -20` para ver lo último que se subió.
+3. Seguí por el primer `[~]` o `[ ]` de la lista, respetando `CLAUDE.md`.
+4. Reparto de trabajo en paralelo (subagentes):
+   - **Principal:** `Sources/OrbexCore/` (salvo `Sessions/`), `Sources/Orbex/{App,Island,Character,Themes,Settings,Clock,Assistant}`, `docs/PLAN.md`.
+   - **Subagente A (empaquetado):** `scripts/`, `.github/workflows/`.
+   - **Subagente B (sesiones de código):** `Sources/orbex-hook/`, `Sources/OrbexCore/Sessions/`, `Sources/Orbex/Sessions/`, `Tests/OrbexCoreTests/Sessions*`.
+
 ## Fase 0 — Preparación (5 %) ✅
 - [x] README, CLAUDE.md, LICENSE, .gitignore, .gitattributes
 - [x] `docs/00-informe-completo.md`, `docs/decisiones.md`, `docs/fases.md`, `docs/PLAN.md`
@@ -16,12 +25,12 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] `design/references/coucou-notes.md` (estudio de la referencia)
 
 ## Fase 1 — Núcleo visual (30 %)
-- [ ] Package.swift + OrbexCore (estados, geometría de isla, motor de vida, expresiones) + tests
+- [~] Package.swift + OrbexCore (estados, geometría de isla, motor de vida, expresiones) + tests
 - [ ] Medición del notch, panel de la isla, morph con resorte, hover/clic, sin notch, cambio de resolución
 - [ ] Personaje ORBEX por código (vidrio, ojos que siguen el cursor, brazos, piernas, poses, colores, clics/mareo, dormido)
 - [ ] Tema Liquid Glass + reducir movimiento/transparencia + claro/oscuro; sonidos base sintetizados
 - [ ] Configuración básica con vista previa; primer arranque (acceso directo, inicio con la Mac)
-- [ ] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions
+- [~] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions (subagente A)
 
 ## Fase 2 — Asistente y utilidades (20 %)
 - [ ] Panel del asistente (Claude + OpenAI por API, streaming, selector de modelo, Keychain, atajo global)
@@ -29,11 +38,11 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [ ] Temporizadores y cronómetro con vueltas, persistentes, anillo de vidrio
 
 ## Fase 3 — Sesiones de código (15 %)
-- [ ] `orbex-hook` + servidor de socket Unix (nunca bloquea a Claude Code)
-- [ ] Instalador de hooks con backup + diff + desinstalar
-- [ ] Sesiones en vivo, aprobar Permitir/Siempre/Denegar, preguntas
-- [ ] Saltar a la terminal correcta (Terminal, iTerm2)
-- [ ] Codex CLI (experimental)
+- [~] `orbex-hook` + servidor de socket Unix (nunca bloquea a Claude Code)
+- [~] Instalador de hooks con backup + diff + desinstalar
+- [~] Sesiones en vivo, aprobar Permitir/Siempre/Denegar, preguntas
+- [~] Saltar a la terminal correcta (Terminal, iTerm2)
+- [~] Codex CLI (experimental) (subagente B, toda la Fase 3)
 
 ## Fase 4 — Reloj y memoria (12 %)
 - [ ] Reloj flotante: esferas Rolex, retro de pared, ORBIT futurista; morph notch↔reloj
