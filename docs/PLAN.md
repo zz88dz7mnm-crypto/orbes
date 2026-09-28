@@ -1,7 +1,18 @@
 # ORBEX — Plan de acción y avance
 
-> Archivo vivo: se actualiza en cada push.
-> **Avance total: 14 %** ▓▓▓░░░░░░░░░░░░░░░░░
+<h1 align="center">🔵 AVANCE TOTAL: 14 %</h1>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/ORBEX-14%25-3fa7ff?style=for-the-badge" alt="Avance 14 %" height="60">
+</p>
+
+<h3 align="center">▓▓▓░░░░░░░░░░░░░░░░░ 14 / 100</h3>
+
+<h3 align="center">🛠️ Ahora mismo: dibujo de ORBEX por código (Fase 1)</h3>
+
+<p align="center"><i>Última actualización: 28/09/2026 — se actualiza en cada push</i></p>
+
+---
 
 Pesos: Fase 0 = 5 % · Fase 1 = 30 % · Fase 2 = 20 % · Fase 3 = 15 % · Fase 4 = 12 % · Fase 5 = 8 % · Fase 6 = 7 % · Cierre = 3 %.
 
