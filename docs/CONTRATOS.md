@@ -17,7 +17,14 @@ Cada módulo es autocontenido. El agente principal los conecta en `AppModel`, la
 - Tamaños: página de la isla abierta ≈ **270 × 230 pt**; panel del asistente ≈ **460 × 520 pt** (variable).
 - Autosave: commit + push de **tus rutas** después de cada archivo o grupo chico (`git add <rutas>`; nunca `git add -A`). `git pull --rebase` antes del push; si hay `index.lock`, esperar 2 s y reintentar.
 
-## Fase actual: 2 — Asistente y utilidades
+## Fase actual: 3 — Sesiones de código
+
+| Quién | Rutas | Entrega |
+|---|---|---|
+| F3-A · Hooks | `orbex-hook/`, `OrbexCore/Sessions/`, `Orbex/Sessions/{HookServer,HooksFiles,HooksCLI}.swift` | relé, servidor de socket, instalador con diff |
+| F3-B · Sesiones UI | `Orbex/Sessions/{SessionsStore,TerminalJumper,SessionsViews,ClaudeCodeSettingsView}.swift` | store, aprobaciones, saltar a la terminal, vistas |
+
+## Fase 2 — Asistente y utilidades (cerrada)
 
 | Quién | Rutas | Entrega |
 |---|---|---|

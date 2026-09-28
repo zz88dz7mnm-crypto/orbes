@@ -332,7 +332,7 @@ final class AppModel: ObservableObject {
                     OrbexBus.play(.fileSwallowed)
                     model.brain.show(.happy, for: 1.5)
                     if model.islandState != .assistant { model.machine.handle(.toggleAssistant) }
-                    AssistantStore.shared.attach(fileURL: url)
+                    _ = AssistantStore.shared.attach(fileURL: url)
                 }
             }
         }
