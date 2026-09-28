@@ -1,7 +1,7 @@
 # ORBEX — Plan de acción y avance
 
 > Archivo vivo: se actualiza en cada push.
-> **Avance total: 5 %** ▓░░░░░░░░░░░░░░░░░░░
+> **Avance total: 14 %** ▓▓▓░░░░░░░░░░░░░░░░░
 
 Pesos: Fase 0 = 5 % · Fase 1 = 30 % · Fase 2 = 20 % · Fase 3 = 15 % · Fase 4 = 12 % · Fase 5 = 8 % · Fase 6 = 7 % · Cierre = 3 %.
 
@@ -25,10 +25,10 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] `design/references/coucou-notes.md` (estudio de la referencia)
 
 ## Fase 1 — Núcleo visual (30 %)
-- [~] Package.swift + OrbexCore (estados, geometría de isla, motor de vida, expresiones) + tests
+- [x] Package.swift + OrbexCore (estados, geometría de isla, motor de vida, expresiones) + tests
 - [ ] Medición del notch, panel de la isla, morph con resorte, hover/clic, sin notch, cambio de resolución
-- [ ] Personaje ORBEX por código (vidrio, ojos que siguen el cursor, brazos, piernas, poses, colores, clics/mareo, dormido)
-- [ ] Tema Liquid Glass + reducir movimiento/transparencia + claro/oscuro; sonidos base sintetizados
+- [~] Personaje ORBEX por código (vidrio, ojos que siguen el cursor, brazos, piernas, poses, colores, clics/mareo, dormido)
+- [~] Tema Liquid Glass + reducir movimiento/transparencia + claro/oscuro; sonidos base sintetizados
 - [ ] Configuración básica con vista previa; primer arranque (acceso directo, inicio con la Mac)
 - [~] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions (subagente A)
 
@@ -70,3 +70,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 |---|---|---|
 | 28/09/2026 | 3 % | Plan inicial y estructura del repo |
 | 28/09/2026 | 5 % | Fase 0 completa: decisiones, fases, especificación del personaje, notas de Coucou |
+| 28/09/2026 | 14 % | OrbexCore + pruebas, tema Liquid Glass, cerebro del personaje, Info.plist |
