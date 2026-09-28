@@ -1,7 +1,7 @@
 # ORBEX — Plan de acción y avance
 
 > Archivo vivo: se actualiza en cada push.
-> **Avance total: 3 %** ▓░░░░░░░░░░░░░░░░░░░
+> **Avance total: 5 %** ▓░░░░░░░░░░░░░░░░░░░
 
 Pesos: Fase 0 = 5 % · Fase 1 = 30 % · Fase 2 = 20 % · Fase 3 = 15 % · Fase 4 = 12 % · Fase 5 = 8 % · Fase 6 = 7 % · Cierre = 3 %.
 
@@ -9,11 +9,11 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 
 ---
 
-## Fase 0 — Preparación (5 %)
-- [~] README, CLAUDE.md, LICENSE, .gitignore, .gitattributes
-- [~] `docs/00-informe-completo.md`, `docs/decisiones.md`, `docs/fases.md`, `docs/PLAN.md`
-- [~] `design/character/hoja-personaje.webp` + especificación del personaje
-- [~] `design/references/coucou-notes.md` (estudio de la referencia)
+## Fase 0 — Preparación (5 %) ✅
+- [x] README, CLAUDE.md, LICENSE, .gitignore, .gitattributes
+- [x] `docs/00-informe-completo.md`, `docs/decisiones.md`, `docs/fases.md`, `docs/PLAN.md`
+- [x] `design/character/hoja-personaje.webp` + especificación del personaje
+- [x] `design/references/coucou-notes.md` (estudio de la referencia)
 
 ## Fase 1 — Núcleo visual (30 %)
 - [ ] Package.swift + OrbexCore (estados, geometría de isla, motor de vida, expresiones) + tests
@@ -60,3 +60,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | Fecha | Avance | Qué se subió |
 |---|---|---|
 | 28/09/2026 | 3 % | Plan inicial y estructura del repo |
+| 28/09/2026 | 5 % | Fase 0 completa: decisiones, fases, especificación del personaje, notas de Coucou |
