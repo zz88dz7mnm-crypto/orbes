@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 70 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 82 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-70%25-3fa7ff?style=for-the-badge" alt="Avance 70 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-82%25-3fa7ff?style=for-the-badge" alt="Avance 82 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░ 70 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 82 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: Fase 4: reloj flotante, acciones programadas y memoria</h3>
+<h3 align="center">🛠️ Ahora mismo: Fase 5: temas (Y2K metálico, macOS limpio) y packs de sonido</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 23:45 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 23:50 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -61,10 +61,12 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] Codex CLI (experimental, a validar)
 - [x] Configuración › Claude Code
 
-## Fase 4 — Reloj y memoria (12 %)
-- [ ] Reloj flotante: esferas Rolex, retro de pared, ORBIT futurista; morph notch↔reloj
-- [ ] Acciones a hora puntual (planificador persistente)
-- [ ] Memoria local editable
+## Fase 4 — Reloj y memoria (12 %) ✅
+- [x] Reloj flotante: esferas Clásica (Rolex), Retro de pared y ORBIT futurista, con ORBEX vivo en la esfera
+- [x] Morph notch ↔ reloj, arrastrar, pegarse a bordes, tamaños, opacidad, click-through (⌥), tic-tac, anillo del timer
+- [x] Acciones a hora puntual ("a las 21 recordame…", "a las 9 abrime mi setup"), vencidas al despertar
+- [x] Memoria local editable ("acordate que…"), contexto del asistente
+- [x] Configuración: Reloj, Acciones programadas, Memoria
 
 ## Fase 5 — Temas (8 %)
 - [ ] Sistema de skins (tema × esfera) con sonidos por tema
@@ -102,3 +104,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 45 % | Fase 2: notas y autonomía listas; conexión en la isla y Configuración |
 | 28/09/2026 | 55 % | Fase 2 completa: asistente con Claude CLI + Clawd, comandos, timers, notas |
 | 28/09/2026 | 70 % | Fase 3 completa: hooks de Claude Code, aprobaciones desde el notch, saltar a la terminal |
+| 28/09/2026 | 82 % | Fase 4 completa: reloj flotante con 3 esferas, acciones programadas, memoria |
