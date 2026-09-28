@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 16 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 17 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-16%25-3fa7ff?style=for-the-badge" alt="Avance 16 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-17%25-3fa7ff?style=for-the-badge" alt="Avance 17 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓░░░░░░░░░░░░░░░░░ 16 / 100</h3>
+<h3 align="center">▓▓▓░░░░░░░░░░░░░░░░░ 17 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: ventana de la isla en el notch (Fase 1)</h3>
+<h3 align="center">🛠️ Ahora mismo: ventana de la isla + 6 subagentes en paralelo (Fases 2, 3, 4, 6 y empaquetado)</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 22:38 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 22:42 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -24,10 +24,14 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 1. Leé este archivo: lo marcado `[x]` ya está en el repo; `[~]` quedó a medias.
 2. Mirá `git log --oneline -20` para ver lo último que se subió.
 3. Seguí por el primer `[~]` o `[ ]` de la lista, respetando `CLAUDE.md`.
-4. Reparto de trabajo en paralelo (subagentes):
-   - **Principal:** `Sources/OrbexCore/` (salvo `Sessions/`), `Sources/Orbex/{App,Island,Character,Themes,Settings,Clock,Assistant}`, `docs/PLAN.md`.
-   - **Subagente A (empaquetado):** `scripts/`, `.github/workflows/`.
-   - **Subagente B (sesiones de código):** `Sources/orbex-hook/`, `Sources/OrbexCore/Sessions/`, `Sources/Orbex/Sessions/`, `Tests/OrbexCoreTests/Sessions*`.
+4. Reparto de trabajo en paralelo (ver `docs/CONTRATOS.md`):
+   - **Principal:** `OrbexCore/{Island,Character,Settings}`, `Orbex/{App,Island,Character,Themes,Settings,System}`, conexión de todo, `docs/PLAN.md`.
+   - **A · Empaquetado:** `scripts/`, `.github/workflows/`.
+   - **B · Sesiones de código (Fase 3):** `orbex-hook/`, `OrbexCore/Sessions/`, `Orbex/Sessions/`.
+   - **C · Utilidades (Fases 2 y 4):** comandos, timers, notas, planificador, memoria, autonomía.
+   - **D · Asistente IA (Fase 2):** Claude + OpenAI con streaming, panel del asistente.
+   - **E · Reloj flotante (Fase 4):** esferas Rolex / retro / ORBIT, ventana flotante.
+   - **F · Integraciones (Fase 6):** Spotify + baile, GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com.
 
 ## Fase 0 — Preparación (5 %) ✅
 - [x] README, CLAUDE.md, LICENSE, .gitignore, .gitattributes
@@ -37,16 +41,16 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 
 ## Fase 1 — Núcleo visual (30 %)
 - [x] Package.swift + OrbexCore (estados, geometría de isla, motor de vida, expresiones) + tests
-- [ ] Medición del notch, panel de la isla, morph con resorte, hover/clic, sin notch, cambio de resolución
+- [~] Medición del notch, panel de la isla, morph con resorte, hover/clic, sin notch, cambio de resolución
 - [~] Personaje ORBEX por código (vidrio, ojos que siguen el cursor, brazos, piernas, poses, colores, clics/mareo, dormido)
 - [~] Tema Liquid Glass + reducir movimiento/transparencia + claro/oscuro; sonidos base sintetizados
 - [ ] Configuración básica con vista previa; primer arranque (acceso directo, inicio con la Mac)
 - [~] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions (subagente A)
 
 ## Fase 2 — Asistente y utilidades (20 %)
-- [ ] Panel del asistente (Claude + OpenAI por API, streaming, selector de modelo, Keychain, atajo global)
-- [ ] Parser de comandos en español: abrir apps (allowlist), notas, temporizadores
-- [ ] Temporizadores y cronómetro con vueltas, persistentes, anillo de vidrio
+- [~] Panel del asistente (Claude + OpenAI por API, streaming, selector de modelo, Keychain, atajo global)
+- [~] Parser de comandos en español: abrir apps (allowlist), notas, temporizadores
+- [~] Temporizadores y cronómetro con vueltas, persistentes, anillo de vidrio
 
 ## Fase 3 — Sesiones de código (15 %)
 - [~] `orbex-hook` + servidor de socket Unix (nunca bloquea a Claude Code)
@@ -56,9 +60,9 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [~] Codex CLI (experimental) (subagente B, toda la Fase 3)
 
 ## Fase 4 — Reloj y memoria (12 %)
-- [ ] Reloj flotante: esferas Rolex, retro de pared, ORBIT futurista; morph notch↔reloj
-- [ ] Acciones a hora puntual (planificador persistente)
-- [ ] Memoria local editable
+- [~] Reloj flotante: esferas Rolex, retro de pared, ORBIT futurista; morph notch↔reloj
+- [~] Acciones a hora puntual (planificador persistente)
+- [~] Memoria local editable
 
 ## Fase 5 — Temas (8 %)
 - [ ] Sistema de skins (tema × esfera) con sonidos por tema
@@ -66,8 +70,8 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [ ] Y2K metálico / Winamp
 
 ## Fase 6 — Integraciones (7 %)
-- [ ] Spotify (AppleScript + baile por FFT del audio del sistema)
-- [ ] GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com (solo lectura, Keychain, interruptor)
+- [~] Spotify (AppleScript + baile por FFT del audio del sistema)
+- [~] GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com (solo lectura, Keychain, interruptor)
 
 ## Cierre (3 %)
 - [ ] Revisión completa del código
@@ -83,3 +87,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 5 % | Fase 0 completa: decisiones, fases, especificación del personaje, notas de Coucou |
 | 28/09/2026 | 14 % | OrbexCore + pruebas, tema Liquid Glass, cerebro del personaje, Info.plist |
 | 28/09/2026 | 16 % | Dibujo de ORBEX por código: vidrio, ojos, brazos-gota, piernas, extras |
+| 28/09/2026 | 17 % | Contratos entre módulos + 4 subagentes nuevos |
