@@ -239,7 +239,12 @@ struct ApprovalCardView: View {
                     .textSelection(.enabled)
             }
 
-            if confirmingAlways {
+            if event.isQuestion {
+                if !event.questionOptions.isEmpty {
+                    optionsList
+                }
+                questionRow
+            } else if confirmingAlways {
                 confirmRow
             } else {
                 buttonsRow
@@ -275,6 +280,34 @@ struct ApprovalCardView: View {
             }
             .buttonStyle(.plain)
             .help("Denegar")
+        }
+    }
+
+    /// Opciones de la pregunta (solo informativas: se responde en la terminal).
+    private var optionsList: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(event.questionOptions.prefix(4).enumerated()), id: \.offset) { _, option in
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("•")
+                    Text(option).lineLimit(1)
+                }
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(theme.secondaryText)
+            }
+        }
+    }
+
+    private var questionRow: some View {
+        HStack(spacing: 5) {
+            Button {
+                let id = approval.id
+                withAnimation(theme.softSpring) { SessionsStore.shared.passToTerminal(id) }
+            } label: {
+                buttonLabel("Responder en la terminal", symbol: "arrow.up.forward.app", filled: true)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(isPrimary ? KeyboardShortcut.defaultAction : nil)
+            .help("Claude te pregunta en la terminal; ORBEX te lleva ahí")
         }
     }
 

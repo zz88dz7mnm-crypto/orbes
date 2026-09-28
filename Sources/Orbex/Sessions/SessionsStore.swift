@@ -7,6 +7,8 @@ struct PendingApproval: Identifiable {
     let id: UUID
     let event: HookEvent
     let respond: (Bool?, String?) -> Void
+    /// Cuándo llegó (el `HookServer` responde "sin decisión" solo a los 105 s).
+    var received: Date = Date()
 }
 
 /// Lo que decide el usuario ante un permiso.
@@ -43,7 +45,6 @@ final class SessionsStore: ObservableObject {
     private var tracker = SessionTracker()
     private var started = false
     private var tickTimer: Timer?
-    private var signature = ""
     /// Fuentes que ya avisamos al bus (para limpiarlas cuando la sesión se va).
     private var activeSources: [String: (working: Bool, attention: Bool)] = [:]
     /// Última línea que pusimos en `AppModel.statusLine` (para no pisar la de otros módulos).
@@ -117,7 +118,7 @@ final class SessionsStore: ObservableObject {
         let signals = tracker.apply(event, now: Date())
         let approval = PendingApproval(id: UUID(), event: event, respond: respond)
         approvals.append(approval)
-        let alreadyNotified = signals.contains { if case .needsPermission = $0 { return true } else { return false } }
+        let alreadyNotified = signals.contains { $0 == .needsPermission || $0 == .question }
         handle(signals, event: event)
         if !alreadyNotified { playNeedsYou() }
         if SessionsKeys.bool(SessionsKeys.autoOpen, default: true) {
@@ -133,7 +134,7 @@ final class SessionsStore: ObservableObject {
             removeApprovals(ofSession: "\(event.sessionID)")
             return
         }
-        if info.status != .needsPermission {
+        if info.status != .needsPermission && info.status != .question {
             removeApprovals(ofSession: "\(event.sessionID)")
         }
     }
@@ -200,10 +201,23 @@ final class SessionsStore: ObservableObject {
         publish()
     }
 
+    /// Sin decisión: la herramienta sigue con su flujo normal (Claude pregunta en la terminal)
+    /// y saltamos a esa terminal. Se usa para las preguntas (`AskUserQuestion`).
+    func passToTerminal(_ id: UUID) {
+        guard let index = approvals.firstIndex(where: { $0.id == id }) else { return }
+        let approval = approvals.remove(at: index)
+        approval.respond(nil, nil)
+        if let s = tracker.sessions[approval.event.sessionID] {
+            TerminalJumper.jump(to: s)
+        }
+        publish()
+    }
+
     // MARK: - "Siempre permitir"
 
     private static func ruleKey(_ event: HookEvent) -> String? {
-        guard let tool = event.toolName, !tool.isEmpty else { return nil }
+        // Las preguntas no se "permiten siempre": las responde el usuario cada vez.
+        guard !event.isQuestion, let tool = event.toolName, !tool.isEmpty else { return nil }
         return "\(event.source == .codex ? "codex" : "claude")|\(event.projectName)|\(tool)"
     }
 
@@ -234,8 +248,13 @@ final class SessionsStore: ObservableObject {
     private func tick() {
         tracker.tick(now: Date())
         // Permisos de sesiones que ya no existen: no esperan nada.
-        let ids = Set(tracker.sorted.map { "\($0.id)" })
-        let orphaned = approvals.filter { !ids.contains("\($0.event.sessionID)") }
+        let ids = Set(tracker.sorted.map(\.id))
+        // Y los que ya vencieron: el servidor respondió "sin decisión" y Claude pregunta en la terminal.
+        let now = Date()
+        let orphaned = approvals.filter {
+            !ids.contains($0.event.sessionID)
+                || now.timeIntervalSince($0.received) > HookServer.permissionTimeout + 1
+        }
         if !orphaned.isEmpty {
             approvals.removeAll { a in orphaned.contains { $0.id == a.id } }
             for a in orphaned { a.respond(nil, nil) }
@@ -249,12 +268,7 @@ final class SessionsStore: ObservableObject {
         var list = tracker.sorted
         if !showCodex { list = list.filter { $0.source != .codex } }
 
-        let sig = list.map { "\($0.id)|\($0.status)|\($0.steps.count)|\($0.lastUpdate)" }
-            .joined(separator: ";") + "#\(approvals.count)"
-        if sig != signature {
-            signature = sig
-            sessions = list
-        }
+        if list != sessions { sessions = list }
         updateActivity(list)
         updateStatusLine()
     }
