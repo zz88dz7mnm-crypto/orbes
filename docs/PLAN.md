@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 14 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 16 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-14%25-3fa7ff?style=for-the-badge" alt="Avance 14 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-16%25-3fa7ff?style=for-the-badge" alt="Avance 16 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓░░░░░░░░░░░░░░░░░ 14 / 100</h3>
+<h3 align="center">▓▓▓░░░░░░░░░░░░░░░░░ 16 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: dibujo de ORBEX por código (Fase 1)</h3>
+<h3 align="center">🛠️ Ahora mismo: ventana de la isla en el notch (Fase 1)</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 22:38 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -82,3 +82,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 3 % | Plan inicial y estructura del repo |
 | 28/09/2026 | 5 % | Fase 0 completa: decisiones, fases, especificación del personaje, notas de Coucou |
 | 28/09/2026 | 14 % | OrbexCore + pruebas, tema Liquid Glass, cerebro del personaje, Info.plist |
+| 28/09/2026 | 16 % | Dibujo de ORBEX por código: vidrio, ojos, brazos-gota, piernas, extras |
