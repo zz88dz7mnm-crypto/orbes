@@ -38,6 +38,21 @@ También podés abrir `Package.swift` con Xcode y darle a *Run*.
 
 ---
 
+## Cómo se usa
+
+- **Pasá el mouse por el notch**: ORBEX asoma. **Clic**: se abre la isla. **Esc** o clic afuera: se cierra.
+- **Clic sobre ORBEX**: se achata y se molesta. **3 clics rápidos**: se marea.
+- Menú de la barra (ícono de la esfera con ojos): abrir, asistente, reloj, **Probar estados** (trabajando, te necesito, festejar, dormir…), Configuración.
+
+| Atajo | Acción |
+|---|---|
+| ⌃⌥O | Abrir la isla |
+| ⌃⌥A | Asistente (Fase 2) |
+| ⌃⌥C | Modo reloj (Fase 4) |
+| ⌃⌥, | Configuración |
+
+---
+
 ## Cómo está hecho
 
 - **Swift + SwiftUI + AppKit**, sin dependencias de terceros.
