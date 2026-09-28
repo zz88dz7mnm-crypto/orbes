@@ -14,18 +14,27 @@ Cada módulo es autocontenido. El agente principal los conecta en `AppModel`, la
 - Tamaños: página de la isla abierta ≈ **270 × 230 pt**; panel del asistente ≈ **460 × 520 pt** (variable).
 - Autosave: commit + push de **tus rutas** después de cada archivo o grupo chico (`git add <rutas>`; nunca `git add -A`). `git pull --rebase` antes del push; si hay `index.lock`, esperar 2 s y reintentar.
 
-## Quién es dueño de qué
-| Módulo | Rutas | Entrega para conectar |
-|---|---|---|
-| Principal | `Package.swift`, `OrbexCore/{Island,Character,Settings}`, `Orbex/{App,Island,Character,Themes,Settings,System}`, `docs/PLAN.md` | — |
-| A · Empaquetado | `scripts/`, `.github/workflows/` | `install.sh`, `.dmg` |
-| B · Sesiones de código | `orbex-hook/`, `OrbexCore/Sessions/`, `Orbex/Sessions/` | `HookServer.shared.start()`, `SessionsStore.shared` (`isWorking`, `needsAttention`, `onSignal`), `SessionsListView`, `ApprovalCardView`, `ClaudeCodeSettingsView`, `HooksCLI.uninstallAll()` |
-| C · Utilidades | `OrbexCore/{Commands,Timers,Notes,Scheduler,Memory,Autonomy}/`, `Orbex/Utilities/` | `CommandParser.parse(_:now:)`, `CommandExecutor.shared.execute(_:)`, `TimersStore.shared`, `NotesStore.shared`, `SchedulerStore.shared`, `MemoryStore.shared`, vistas `TimersPageView`, `NotesPageView`, `TimerRingView`, secciones de Configuración |
-| D · Asistente IA | `OrbexCore/Assistant/`, `Orbex/Assistant/` | `AssistantStore.shared`, `AssistantPanelView`, `AssistantSettingsView` |
-| E · Reloj flotante | `OrbexCore/Clock/`, `Orbex/Clock/` | `ClockController.shared.show(from:)/hide()/isVisible`, `ClockSettingsView` |
-| F · Integraciones | `OrbexCore/Integrations/`, `Orbex/Integrations/` | `IntegrationsHub.shared.start()`, `MusicStore.shared`, `MusicPageView`, `IntegrationsPageView`, `IntegrationsSettingsView`, `MusicStore.shared.isPlaying` (para el baile) |
+## Fase actual: 1 — Núcleo visual
+Regla: una fase a la vez. Los subagentes trabajan SOLO en la fase actual.
 
-## API acordada entre C y D (comandos)
+| Quién | Rutas | Entrega |
+|---|---|---|
+| Principal | `Package.swift`, `OrbexCore/`, `Orbex/{Island,Character,Themes}`, `Orbex/App/{AppModel,AppDelegate,OrbexBus,main}.swift`, `Orbex/System/{NotchDetector,Keychain,AppPaths}.swift`, `docs/` | Isla, personaje, conexión |
+| F1-A · Empaquetado | `scripts/`, `.github/workflows/` | `install.sh`, `build-app.sh`, `make-dmg.sh`, `uninstall.sh`, ícono, workflow manual |
+| F1-B · Servicios del sistema | `Orbex/System/{SoundEngine,HotKeys,LaunchAtLogin,DesktopShortcut,StatusBarIcon}.swift`, `Orbex/App/FirstRun*.swift` | `SoundEngine.shared.play(_:)`, `HotKeyCenter`, `LaunchAtLogin.set/isEnabled`, `DesktopShortcut.create/remove/exists`, `StatusBarIcon.image()`, `FirstRunWindowController.shared.showIfNeeded()` |
+| F1-C · Configuración | `Orbex/Settings/` | `SettingsWindowController.shared.show()` con vista previa en vivo |
+
+## Fases siguientes (referencia, NO empezar hasta cerrar la anterior)
+| Fase | Módulo | Rutas | Entrega |
+|---|---|---|---|
+| 2 | Utilidades | `OrbexCore/{Commands,Timers,Notes,Autonomy}/`, `Orbex/Utilities/` | `CommandParser`, `CommandExecutor`, `TimersStore`, `NotesStore`, vistas |
+| 2 | Asistente (solo Claude vía CLI `claude` local, naranja + mascota Clawd) | `OrbexCore/Assistant/`, `Orbex/Assistant/` | `AssistantStore.shared`, `AssistantPanelView`, `AssistantSettingsView` |
+| 3 | Sesiones de código | `orbex-hook/`, `OrbexCore/Sessions/`, `Orbex/Sessions/` | `HookServer`, `SessionsStore`, vistas, instalador de hooks (ignora `ORBEX_INTERNAL=1`) |
+| 4 | Reloj + planificador + memoria | `OrbexCore/{Clock,Scheduler,Memory}/`, `Orbex/Clock/` | `ClockController`, `SchedulerStore`, `MemoryStore` |
+| 5 | Temas | `Orbex/Themes/` | skins + packs de sonido |
+| 6 | Integraciones | `OrbexCore/Integrations/`, `Orbex/Integrations/` | `IntegrationsHub`, `MusicStore`, vistas |
+
+## API acordada para la Fase 2 (comandos ↔ asistente)
 ```swift
 // OrbexCore/Commands/CommandParser.swift
 public enum OrbexCommand: Equatable, Sendable {

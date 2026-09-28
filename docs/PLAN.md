@@ -8,9 +8,9 @@
 
 <h3 align="center">▓▓▓░░░░░░░░░░░░░░░░░ 17 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: ventana de la isla + 6 subagentes en paralelo (Fases 2, 3, 4, 6 y empaquetado)</h3>
+<h3 align="center">🛠️ Ahora mismo: cerrar la Fase 1: isla (principal) + empaquetado, servicios del sistema y configuración (3 subagentes)</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 22:42 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 22:50 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -24,14 +24,7 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 1. Leé este archivo: lo marcado `[x]` ya está en el repo; `[~]` quedó a medias.
 2. Mirá `git log --oneline -20` para ver lo último que se subió.
 3. Seguí por el primer `[~]` o `[ ]` de la lista, respetando `CLAUDE.md`.
-4. Reparto de trabajo en paralelo (ver `docs/CONTRATOS.md`):
-   - **Principal:** `OrbexCore/{Island,Character,Settings}`, `Orbex/{App,Island,Character,Themes,Settings,System}`, conexión de todo, `docs/PLAN.md`.
-   - **A · Empaquetado:** `scripts/`, `.github/workflows/`.
-   - **B · Sesiones de código (Fase 3):** `orbex-hook/`, `OrbexCore/Sessions/`, `Orbex/Sessions/`.
-   - **C · Utilidades (Fases 2 y 4):** comandos, timers, notas, planificador, memoria, autonomía.
-   - **D · Asistente IA (Fase 2):** Claude + OpenAI con streaming, panel del asistente.
-   - **E · Reloj flotante (Fase 4):** esferas Rolex / retro / ORBIT, ventana flotante.
-   - **F · Integraciones (Fase 6):** Spotify + baile, GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com.
+4. **Regla de trabajo:** una fase a la vez. Todos los subagentes trabajan SOLO en la fase actual; la siguiente arranca cuando la actual está cerrada. Reparto de la fase actual en `docs/CONTRATOS.md`.
 
 ## Fase 0 — Preparación (5 %) ✅
 - [x] README, CLAUDE.md, LICENSE, .gitignore, .gitattributes
@@ -45,24 +38,24 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [~] Personaje ORBEX por código (vidrio, ojos que siguen el cursor, brazos, piernas, poses, colores, clics/mareo, dormido)
 - [~] Tema Liquid Glass + reducir movimiento/transparencia + claro/oscuro; sonidos base sintetizados
 - [ ] Configuración básica con vista previa; primer arranque (acceso directo, inicio con la Mac)
-- [~] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions (subagente A)
+- [~] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions
 
 ## Fase 2 — Asistente y utilidades (20 %)
-- [~] Panel del asistente (Claude + OpenAI por API, streaming, selector de modelo, Keychain, atajo global)
-- [~] Parser de comandos en español: abrir apps (allowlist), notas, temporizadores
-- [~] Temporizadores y cronómetro con vueltas, persistentes, anillo de vidrio
+- [ ] Panel del asistente: **solo Claude vía `claude` CLI local** (sin claves de API), chat interactivo, ORBEX se pone naranja y aparece la mascota de Claude Code, atajo global
+- [ ] Parser de comandos en español: abrir apps (allowlist), notas, temporizadores
+- [ ] Temporizadores y cronómetro con vueltas, persistentes, anillo de vidrio
 
 ## Fase 3 — Sesiones de código (15 %)
-- [~] `orbex-hook` + servidor de socket Unix (nunca bloquea a Claude Code)
-- [~] Instalador de hooks con backup + diff + desinstalar
-- [~] Sesiones en vivo, aprobar Permitir/Siempre/Denegar, preguntas
-- [~] Saltar a la terminal correcta (Terminal, iTerm2)
-- [~] Codex CLI (experimental) (subagente B, toda la Fase 3)
+- [ ] `orbex-hook` + servidor de socket Unix (nunca bloquea a Claude Code)
+- [ ] Instalador de hooks con backup + diff + desinstalar
+- [ ] Sesiones en vivo, aprobar Permitir/Siempre/Denegar, preguntas
+- [ ] Saltar a la terminal correcta (Terminal, iTerm2)
+- [ ] Codex CLI (experimental)
 
 ## Fase 4 — Reloj y memoria (12 %)
-- [~] Reloj flotante: esferas Rolex, retro de pared, ORBIT futurista; morph notch↔reloj
-- [~] Acciones a hora puntual (planificador persistente)
-- [~] Memoria local editable
+- [ ] Reloj flotante: esferas Rolex, retro de pared, ORBIT futurista; morph notch↔reloj
+- [ ] Acciones a hora puntual (planificador persistente)
+- [ ] Memoria local editable
 
 ## Fase 5 — Temas (8 %)
 - [ ] Sistema de skins (tema × esfera) con sonidos por tema
@@ -70,8 +63,8 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [ ] Y2K metálico / Winamp
 
 ## Fase 6 — Integraciones (7 %)
-- [~] Spotify (AppleScript + baile por FFT del audio del sistema)
-- [~] GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com (solo lectura, Keychain, interruptor)
+- [ ] Spotify (AppleScript + baile por FFT del audio del sistema)
+- [ ] GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com (solo lectura, Keychain, interruptor)
 
 ## Cierre (3 %)
 - [ ] Revisión completa del código

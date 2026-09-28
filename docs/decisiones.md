@@ -16,3 +16,7 @@ Registro de decisiones del proyecto. Las del informe original están en `00-info
 | 28/09/2026 | Compilación: el dueño baja el zip y una IA en su Mac corre `./scripts/install.sh` | No se puede compilar macOS desde la nube (Linux sin Swift). Workflow de GitHub Actions solo manual |
 | 28/09/2026 | Avance en `docs/PLAN.md`, push tras cada paso | Pedido del dueño: ver el % y no perder contenido |
 | 28/09/2026 | Reloj estilo ORBIT: **interpretación propia** (anillos, órbitas) hasta tener la descripción de ORBIT | §6.4 del informe sigue pendiente |
+| 28/09/2026 | **Trabajo por fases estricto**: subagentes solo en la fase actual; no se empieza la siguiente sin cerrar la anterior | Pedido del dueño |
+| 28/09/2026 | **Asistente (Fase 2): solo Claude**, usado a través del **CLI `claude` local** (Claude Code, con la suscripción del dueño). Sin OpenAI y sin claves de API | Pedido del dueño. Reemplaza §9.2 del informe |
+| 28/09/2026 | Con el asistente activo, **ORBEX se pone naranja** y aparece una **mascota chica: Clawd**, el bichito pixelado de Claude Code (dibujado por código, uso personal) | Pedido del dueño |
+| 28/09/2026 | Las sesiones de `claude` que lanza ORBEX llevan `ORBEX_INTERNAL=1`: el relé de hooks (Fase 3) las ignora | Evitar que el asistente aparezca como sesión o pida aprobaciones |
