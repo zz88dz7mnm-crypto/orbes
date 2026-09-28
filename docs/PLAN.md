@@ -36,7 +36,7 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] `design/character/hoja-personaje.webp` + especificación del personaje
 - [x] `design/references/coucou-notes.md` (estudio de la referencia)
 
-## Fase 1 — Núcleo visual (30 %)
+## Fase 1 — Núcleo visual (30 %) ✅ escrita
 - [x] Package.swift + OrbexCore (estados, geometría de isla, motor de vida, expresiones) + tests
 - [x] Medición del notch, panel de la isla, morph con resorte, hover/clic, sin notch, cambio de resolución
 - [x] Personaje ORBEX por código (vidrio, ojos que siguen el cursor, brazos, piernas, poses, colores, clics/mareo, dormido)
@@ -44,7 +44,7 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] Configuración básica con vista previa; primer arranque (acceso directo, inicio con la Mac)
 - [x] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions
 
-- [~] Revisión final de la Fase 1 (errores de compilación)
+- [ ] Compilación real en macOS (tu Mac con `./scripts/install.sh` o GitHub Actions) — pendiente
 
 ## Fase 2 — Asistente y utilidades (20 %)
 - [~] Panel del asistente: **solo Claude vía `claude` CLI local** (sin claves de API), chat interactivo, ORBEX se pone naranja y aparece la mascota de Claude Code, atajo global
