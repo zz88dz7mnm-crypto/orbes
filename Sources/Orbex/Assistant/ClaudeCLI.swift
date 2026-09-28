@@ -47,7 +47,7 @@ final class ClaudeCLI: @unchecked Sendable {
 
     /// Ruta absoluta de `claude` (con caché). `force` vuelve a buscar.
     func resolveExecutable(force: Bool = false) async -> String? {
-        if !force, let p = lock.withLock({ cachedPath }), FileManager.default.isExecutableFile(atPath: p) { return p }
+        if !force, let p = lock.claudeLocked({ cachedPath }), FileManager.default.isExecutableFile(atPath: p) { return p }
         var found: String?
         // 1) Lo que ve el shell de login del usuario.
         let out = await Self.capture(executable: nil, script: "command -v claude", arguments: [], timeout: 15)
@@ -61,7 +61,7 @@ final class ClaudeCLI: @unchecked Sendable {
         if found == nil {
             found = (Self.fallbackPaths + Self.nvmCandidates()).first { FileManager.default.isExecutableFile(atPath: $0) }
         }
-        lock.withLock { cachedPath = found }
+        lock.claudeLocked { cachedPath = found }
         return found
     }
 
@@ -151,10 +151,12 @@ final class ClaudeCLI: @unchecked Sendable {
                 }
                 let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }
                 DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
-                var errData = Data()
+                let errBox = DataBox()
                 let errDone = DispatchSemaphore(value: 0)
+                let errHandle = err.fileHandleForReading
                 DispatchQueue.global().async {
-                    errData = err.fileHandleForReading.readDataToEndOfFile()
+                    let d = errHandle.readDataToEndOfFile()
+                    errBox.set(d)
                     errDone.signal()
                 }
                 let outData = out.fileHandleForReading.readDataToEndOfFile()
@@ -163,7 +165,7 @@ final class ClaudeCLI: @unchecked Sendable {
                 killer.cancel()
                 cont.resume(returning: Captured(status: p.terminationStatus,
                                                 stdout: String(decoding: outData, as: UTF8.self),
-                                                stderr: String(decoding: errData, as: UTF8.self)))
+                                                stderr: String(decoding: errBox.get(), as: UTF8.self)))
             }
         }
     }
@@ -192,7 +194,7 @@ private final class ClaudeRun: @unchecked Sendable {
 
     func start(executable: String?, arguments: [String], input: Data,
                environment: [String: String], workingDirectory: URL) {
-        if lock.withLock({ cancelled }) {
+        if lock.claudeLocked({ cancelled }) {
             finish(throwing: ClaudeFailure.cancelled())
             return
         }
@@ -209,7 +211,7 @@ private final class ClaudeRun: @unchecked Sendable {
         p.standardError = errPipe
         p.terminationHandler = { [self] proc in
             let code = proc.terminationStatus
-            lock.withLock {
+            lock.claudeLocked {
                 terminated = true
                 exitCode = code
             }
@@ -226,7 +228,11 @@ private final class ClaudeRun: @unchecked Sendable {
                                            detail: error.localizedDescription))
             return
         }
-        lock.withLock { process = p }
+        let cancelledEarly: Bool = lock.claudeLocked {
+            process = p
+            return cancelled
+        }
+        if cancelledEarly { signalStop(p) }
 
         // Prompt por stdin (en segundo plano: un prompt grande puede llenar el buffer del pipe).
         DispatchQueue.global(qos: .userInitiated).async {
@@ -241,12 +247,12 @@ private final class ClaudeRun: @unchecked Sendable {
             while true {
                 let data = outHandle.availableData
                 if data.isEmpty { break }
-                let events = lock.withLock { parser.feed(data) }
+                let events = lock.claudeLocked { parser.feed(data) }
                 deliver(events)
             }
-            let rest = lock.withLock { parser.finish() }
+            let rest = lock.claudeLocked { parser.finish() }
             deliver(rest)
-            lock.withLock { stdoutDone = true }
+            lock.claudeLocked { stdoutDone = true }
             tryFinish()
         }
 
@@ -256,29 +262,35 @@ private final class ClaudeRun: @unchecked Sendable {
             while true {
                 let data = errHandle.availableData
                 if data.isEmpty { break }
-                lock.withLock {
+                lock.claudeLocked {
                     if stderrData.count < 64 * 1024 { stderrData.append(data) }
                 }
             }
-            lock.withLock { stderrDone = true }
+            lock.claudeLocked { stderrDone = true }
             tryFinish()
         }
     }
 
     /// Corta la respuesta: primero SIGINT (Claude Code cierra el turno prolijo), después SIGTERM y SIGKILL.
     func cancel() {
-        let p: Process? = lock.withLock {
+        let p: Process? = lock.claudeLocked {
             guard !finished else { return nil }
             cancelled = true
             return process
         }
-        guard let p, p.isRunning else { return }
+        guard let p else { return }
+        signalStop(p)
+    }
+
+    private func signalStop(_ p: Process) {
+        guard p.isRunning else { return }
         p.interrupt()
+        let pid = p.processIdentifier
         DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) {
             if p.isRunning { p.terminate() }
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + 4) {
-            if p.isRunning { kill(p.processIdentifier, SIGKILL) }
+            if p.isRunning { kill(pid, SIGKILL) }
         }
     }
 
@@ -286,7 +298,7 @@ private final class ClaudeRun: @unchecked Sendable {
 
     private func deliver(_ events: [ClaudeStreamEvent]) {
         guard !events.isEmpty else { return }
-        let stop: Bool = lock.withLock {
+        let stop: Bool = lock.claudeLocked {
             for e in events {
                 switch e {
                 case .result(let r): lastResult = r
@@ -304,7 +316,7 @@ private final class ClaudeRun: @unchecked Sendable {
     }
 
     private func tryFinish() {
-        let ready: Bool = lock.withLock {
+        let ready: Bool = lock.claudeLocked {
             guard !finished, terminated else { return false }
             let sawResult = lastResult != nil
             return (stdoutDone || sawResult) && (stderrDone || sawResult)
@@ -313,13 +325,13 @@ private final class ClaudeRun: @unchecked Sendable {
     }
 
     private func forceFinish() {
-        let pending = lock.withLock { !finished }
+        let pending = lock.claudeLocked { !finished }
         if pending { finishFromState() }
     }
 
     private func finishFromState() {
         let snapshot: (cancelled: Bool, result: ClaudeResult?, assistantError: String?, stderr: String, stray: [String], code: Int32) =
-            lock.withLock {
+            lock.claudeLocked {
                 (cancelled, lastResult, assistantError, String(decoding: stderrData, as: UTF8.self), strayLines, exitCode)
             }
         if snapshot.cancelled {
@@ -345,7 +357,7 @@ private final class ClaudeRun: @unchecked Sendable {
     }
 
     private func finish(throwing error: Error?) {
-        let first: Bool = lock.withLock {
+        let first: Bool = lock.claudeLocked {
             guard !finished else { return false }
             finished = true
             process = nil
@@ -357,5 +369,22 @@ private final class ClaudeRun: @unchecked Sendable {
         } else {
             continuation.finish()
         }
+    }
+}
+
+/// Datos compartidos entre hilos (salida de un proceso corto).
+private final class DataBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    func set(_ d: Data) { lock.claudeLocked { data = d } }
+    func get() -> Data { lock.claudeLocked { data } }
+}
+
+private extension NSLock {
+    /// Ejecuta `body` con el candado tomado (sin depender de `withLock`, que es de macOS 14+ en algunos SDK).
+    func claudeLocked<T>(_ body: () throws -> T) rethrows -> T {
+        lock()
+        defer { unlock() }
+        return try body()
     }
 }
