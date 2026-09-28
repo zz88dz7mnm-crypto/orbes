@@ -17,7 +17,7 @@ Cada módulo es autocontenido. El agente principal los conecta en `AppModel`, la
 - Tamaños: página de la isla abierta ≈ **270 × 230 pt**; panel del asistente ≈ **460 × 520 pt** (variable).
 - Autosave: commit + push de **tus rutas** después de cada archivo o grupo chico (`git add <rutas>`; nunca `git add -A`). `git pull --rebase` antes del push; si hay `index.lock`, esperar 2 s y reintentar.
 
-## Fase actual: 3 — Sesiones de código
+## Fase 3 — Sesiones de código (cerrada)
 
 | Quién | Rutas | Entrega |
 |---|---|---|
