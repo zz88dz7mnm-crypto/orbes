@@ -8,9 +8,9 @@
 
 <h3 align="center">▓▓▓▓░░░░░░░░░░░░░░░░ 22 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: revisión de la isla + conectar lo que entreguen los 3 subagentes de la Fase 1</h3>
+<h3 align="center">🛠️ Ahora mismo: revisión de tipos a mano de la isla + esperar entregas de los 3 subagentes de la Fase 1</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 22:55 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 22:58 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -19,6 +19,10 @@ Pesos: Fase 0 = 5 % · Fase 1 = 30 % · Fase 2 = 20 % · Fase 3 = 15 % · Fase 4
 Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 
 ---
+
+## Verificación automática (en la nube)
+- `OrbexCore` se compila y se prueba con **Swift 6.1 en Linux** (Docker `mirror.gcr.io/library/swift:6.1-noble`): **34/34 pruebas OK** (28/09/2026).
+- El código de la app (AppKit/SwiftUI) se revisa con `swiftc -parse` (sintaxis). La compilación completa necesita macOS (tu Mac o GitHub Actions).
 
 ## Cómo retomar (si se corta la sesión)
 1. Leé este archivo: lo marcado `[x]` ya está en el repo; `[~]` quedó a medias.
@@ -83,3 +87,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 17 % | Contratos entre módulos + 4 subagentes nuevos |
 | 28/09/2026 | 18 % | AppModel, marcador de orbex-hook, subagentes de la Fase 1 |
 | 28/09/2026 | 22 % | Isla en el notch: panel, clics que pasan, hover, estados, página de inicio, menú de barra, arranque |
+| 28/09/2026 | 22 % | Swift 6.1 en Linux (Docker): OrbexCore compila, 34/34 pruebas OK |
