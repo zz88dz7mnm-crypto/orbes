@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 90 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 97 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-90%25-3fa7ff?style=for-the-badge" alt="Avance 90 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-97%25-3fa7ff?style=for-the-badge" alt="Avance 97 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 90 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 97 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: Fase 6: Spotify (baile al ritmo) e integraciones</h3>
+<h3 align="center">🛠️ Ahora mismo: Cierre: pasada única de corrección de errores + instrucciones de instalación</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 23:53 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 23:58 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -75,9 +75,11 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] Y2K metálico (Winamp): ORBEX cromado, botones gelatina, pantallita LCD, ecualizador, bisel cromado en la isla
 - [x] Cambio de tema en vivo (con saludo en el pack nuevo); respeta reducir transparencia y movimiento
 
-## Fase 6 — Integraciones (7 %)
-- [ ] Spotify (AppleScript + baile por FFT del audio del sistema)
-- [ ] GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com (solo lectura, Keychain, interruptor)
+## Fase 6 — Integraciones (7 %) ✅
+- [x] Spotify / Música: qué suena, portada, controles, ORBEX verde y bailando (sin abrir las apps)
+- [x] Baile al ritmo: audio del sistema (ScreenCaptureKit) → energía de graves (opcional, con permiso)
+- [x] GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com: solo lectura, clave en Keychain, interruptor, color de ORBEX
+- [x] Página Servicios y Música en la isla; Configuración › Música e Integraciones
 
 ## Cierre (3 %)
 - [ ] Revisión completa del código
@@ -108,3 +110,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 70 % | Fase 3 completa: hooks de Claude Code, aprobaciones desde el notch, saltar a la terminal |
 | 28/09/2026 | 82 % | Fase 4 completa: reloj flotante con 3 esferas, acciones programadas, memoria |
 | 28/09/2026 | 90 % | Fase 5 completa: temas Liquid Glass, macOS limpio y Y2K con sus sonidos |
+| 28/09/2026 | 97 % | Fase 6 completa: Spotify + baile al ritmo + 7 integraciones |

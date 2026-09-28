@@ -30,6 +30,7 @@ struct IntegrationsPageView: View {
                 }
             }
         }
+        .onAppear { hub.acknowledge() }
     }
 }
 
