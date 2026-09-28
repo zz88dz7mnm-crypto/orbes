@@ -67,6 +67,8 @@ public enum IslandEvent: Equatable, Sendable {
     case toggleAssistant
     case toggleClock
     case contextChanged(IslandContext)
+    /// Asomarse un rato para mostrar un aviso corto (si está en reposo oculto o dormido).
+    case flash(duration: TimeInterval)
 }
 
 /// Máquina de estados pura de la isla. No usa timers: la app llama a `tick(now:)`
@@ -155,6 +157,14 @@ public final class IslandStateMachine {
 
         case .toggleClock:
             if state == .clock { goToRest() } else { deadline = nil; set(.clock) }
+
+        case .flash(let duration):
+            if state == .hidden || state == .sleeping {
+                set(.peek)
+                deadline = now.addingTimeInterval(duration)
+            } else if state == .peek, !isHovering {
+                deadline = now.addingTimeInterval(duration)
+            }
 
         case .contextChanged(let newContext):
             let hadAttention = context.needsAttention

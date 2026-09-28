@@ -94,6 +94,19 @@ final class IslandStateMachineTests: XCTestCase {
         XCTAssertEqual(changes.first?.1, .open)
     }
 
+    func testFlashPeeksThenHides() {
+        let m = IslandStateMachine()
+        m.handle(.flash(duration: 2), now: t0)
+        XCTAssertEqual(m.state, .peek)
+        m.tick(now: t0.addingTimeInterval(1))
+        XCTAssertEqual(m.state, .peek)
+        m.tick(now: t0.addingTimeInterval(2.1))
+        XCTAssertEqual(m.state, .hidden)
+        m.handle(.contextChanged(IslandContext(isWorking: true)))
+        m.handle(.flash(duration: 2), now: t0)
+        XCTAssertEqual(m.state, .active)
+    }
+
     func testHoverPeekCanBeDisabled() {
         let m = IslandStateMachine(config: .init(hoverPeeks: false))
         m.handle(.mouseEntered)
