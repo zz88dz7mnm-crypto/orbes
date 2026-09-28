@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 42 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 45 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-42%25-3fa7ff?style=for-the-badge" alt="Avance 42 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-45%25-3fa7ff?style=for-the-badge" alt="Avance 45 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓░░░░░░░░░░░░ 42 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓▓░░░░░░░░░░░ 45 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: Fase 2: notas + pantallas + ejecutor (F2-A) y puente con claude + panel de chat (F2-B)</h3>
+<h3 align="center">🛠️ Ahora mismo: Fase 2 al 50 %: pantallas + ejecutor (F2-A) y puente con claude + panel de chat (F2-B)</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 23:30 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 23:31 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -45,11 +45,11 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions
 
 
-## Fase 2 — Asistente y utilidades (20 %) — llevamos ~7,5 de 20
+## Fase 2 — Asistente y utilidades (20 %) — llevamos ~10 de 20
 Utilidades (10):
 - [x] Entender comandos en español (parser, duraciones, horarios, alias de apps) — 3
 - [x] Timers, cronómetro y pomodoro (lógica) — 2
-- [ ] Notas y reglas de autonomía — 1
+- [x] Notas y reglas de autonomía — 1
 - [ ] Pantallas Timers/Notas, abrir apps, ejecutor de comandos — 3
 - [ ] Secciones de Configuración (Timers, Notas, Acciones) — 1
 Asistente (8):
@@ -59,7 +59,7 @@ Asistente (8):
 - [ ] Panel del chat interactivo, ORBEX naranja — 2
 - [ ] Sección de Configuración del asistente — 1
 Integración (2):
-- [ ] Conectar páginas y panel en la isla + Configuración — 2
+- [~] Conectar páginas y panel en la isla + Configuración — 1,5 de 2 (escrito; se ajusta con los nombres finales)
 
 ## Fase 3 — Sesiones de código (15 %)
 - [ ] `orbex-hook` + servidor de socket Unix (nunca bloquea a Claude Code)
@@ -106,3 +106,4 @@ Integración (2):
 | 28/09/2026 | 33 % | Arranca la Fase 2 con 2 subagentes |
 | 28/09/2026 | 39 % | Fase 2: comandos en español y lógica del chat listos; Clawd dibujado |
 | 28/09/2026 | 42 % | Fase 1 cuenta completa; timers/cronómetro/pomodoro listos |
+| 28/09/2026 | 45 % | Fase 2: notas y autonomía listas; conexión en la isla y Configuración |
