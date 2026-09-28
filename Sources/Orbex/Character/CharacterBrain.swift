@@ -69,6 +69,8 @@ final class CharacterBrain: ObservableObject {
         didSet { scheduler.level = lifeLevel }
     }
     var reduceMotion = false
+    /// Energía de graves de la música (0…1), si el baile al ritmo está activo.
+    var beatLevel: Double = 0
 
     /// Última posición del mouse en coordenadas de pantalla (AppKit). La actualiza el controlador de la isla.
     var mouseOnScreen: CGPoint = .zero
@@ -256,8 +258,11 @@ final class CharacterBrain: ObservableObject {
             f.scaleY = LifeScheduler.breathScale(at: t * 0.6, amplitude: 0.03)
         case .dance:
             let beat = t * 2 * .pi * 1.9
+            // Con el detector de ritmo activo, los golpes de graves lo hacen saltar más.
+            let punch = 1 + beatLevel * 1.8
             f.rotation = calm ? 0 : sin(beat / 2) * 0.12
-            f.offsetY -= calm ? 0 : abs(sin(beat)) * 0.04
+            f.offsetY -= calm ? 0 : abs(sin(beat)) * 0.04 * punch
+            f.scaleY += calm ? 0 : beatLevel * 0.04
             f.leftArmRaise = 1.4 + sin(beat) * 0.9
             f.rightArmRaise = 1.4 - sin(beat) * 0.9
             f.leftFootLift = max(0, sin(beat)) * 0.04
