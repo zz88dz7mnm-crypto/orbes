@@ -29,6 +29,7 @@ struct OrbexView: View {
     var scale: CGFloat = 1
 
     @Environment(\.hostWindow) private var hostWindow
+    @Environment(\.orbexTheme) private var theme
 
     var body: some View {
         GeometryReader { geo in
@@ -38,7 +39,9 @@ struct OrbexView: View {
                     let t = CACurrentMediaTime()
                     let layout = OrbexPainter.Layout(size: size, showLimbs: showLimbs, scale: scale)
                     let target = lookTarget(bodyCenter: layout.center, global: global)
-                    let frame = brain.frame(at: t, lookTarget: target)
+                    var frame = brain.frame(at: t, lookTarget: target)
+                    frame.material = theme.glassAllowed || theme.id != .liquidGlass
+                        ? OrbexMaterial(theme: theme.id) : .solid
                     OrbexPainter.draw(frame, in: &ctx, layout: layout, t: t)
                 }
             }

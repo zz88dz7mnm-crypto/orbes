@@ -201,6 +201,11 @@ final class AppModel: ObservableObject {
             NotificationCenter.default.post(name: .orbexPlacementNeedsUpdate, object: nil)
         }
         if settings.sleep != old.sleep { checkSleep() }
+        // Cambio de tema en vivo: saludo con el pack de sonido nuevo.
+        if settings.theme != old.theme {
+            SoundEngine.shared.preview(.greet, theme: settings.theme)
+            brain.greet()
+        }
     }
 
     private func refreshTint() {

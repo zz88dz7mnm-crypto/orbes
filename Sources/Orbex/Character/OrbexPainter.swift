@@ -56,7 +56,7 @@ enum OrbexPainter {
             for side in [-1.0, 1.0] {
                 let lift = CGFloat(side < 0 ? f.leftFootLift : f.rightFootLift) * D
                 drawLeg(&ctx, side: side, bodyCenter: bodyCenter, footY: floorY + hop - lift - 0.05 * D,
-                        D: D, tint: tint, crouch: f.crouch)
+                        D: D, tint: tint, crouch: f.crouch, material: f.material)
             }
         }
 
@@ -68,11 +68,11 @@ enum OrbexPainter {
         body.scaleBy(x: CGFloat(f.scaleX), y: CGFloat(f.scaleY))
         body.translateBy(x: 0, y: -0.5 * D)
 
-        drawBody(&body, D: D, tint: tint)
+        drawBody(&body, D: D, tint: tint, material: f.material)
         drawEyes(&body, f: f, D: D)
         if layout.showLimbs {
-            drawArm(&body, side: -1, raise: f.leftArmRaise, D: D, tint: tint)
-            drawArm(&body, side: 1, raise: f.rightArmRaise, D: D, tint: tint)
+            drawArm(&body, side: -1, raise: f.leftArmRaise, D: D, tint: tint, material: f.material)
+            drawArm(&body, side: 1, raise: f.rightArmRaise, D: D, tint: tint, material: f.material)
         }
         drawExtras(&body, f.extras, D: D, t: t)
     }
@@ -89,9 +89,15 @@ enum OrbexPainter {
                    with: .color(Color.white.opacity(0.10 * Double(shrink))))
     }
 
-    static func drawBody(_ ctx: inout GraphicsContext, D: CGFloat, tint: (r: Double, g: Double, b: Double)) {
+    static func drawBody(_ ctx: inout GraphicsContext, D: CGFloat, tint: (r: Double, g: Double, b: Double),
+                         material: OrbexMaterial = .glass) {
         let r = D / 2
         let circle = Path(ellipseIn: CGRect(x: -r, y: -r, width: D, height: D))
+        switch material {
+        case .glass: break
+        case .solid: drawSolidBody(&ctx, circle: circle, D: D, tint: tint); return
+        case .chrome: drawChromeBody(&ctx, circle: circle, D: D, tint: tint); return
+        }
 
         // Relleno de vidrio: claro en el centro, más denso en el borde (da volumen de esfera).
         let fill = Gradient(stops: [
@@ -133,6 +139,44 @@ enum OrbexPainter {
         arc.addArc(center: .zero, radius: r * 0.86, startAngle: .degrees(15), endAngle: .degrees(70), clockwise: false)
         ctx.stroke(arc, with: .color(Color.white.opacity(0.28)),
                    style: StrokeStyle(lineWidth: max(0.6, 0.02 * D), lineCap: .round))
+    }
+
+    /// macOS limpio: cuerpo sólido, sobrio, con sombreado suave.
+    static func drawSolidBody(_ ctx: inout GraphicsContext, circle: Path, D: CGFloat, tint: (r: Double, g: Double, b: Double)) {
+        let r = D / 2
+        let base = mix(tint, white, 0.35)
+        ctx.fill(circle, with: .radialGradient(
+            Gradient(colors: [rgb(mix(base, white, 0.55), 1), rgb(base, 1), rgb(mix(base, deep, 0.45), 1)]),
+            center: CGPoint(x: -0.18 * D, y: -0.22 * D), startRadius: 0, endRadius: 0.75 * D))
+        ctx.stroke(circle, with: .color(Color.black.opacity(0.18)), lineWidth: max(0.6, 0.012 * D))
+        let dot = 0.09 * D
+        ctx.fill(Path(ellipseIn: CGRect(x: -0.28 * D, y: -0.3 * D, width: dot * 1.4, height: dot)),
+                 with: .color(Color.white.opacity(0.55)))
+        _ = r
+    }
+
+    /// Y2K metálico: esfera cromada con bandas de reflejo y brillos duros (tipo Winamp).
+    static func drawChromeBody(_ ctx: inout GraphicsContext, circle: Path, D: CGFloat, tint: (r: Double, g: Double, b: Double)) {
+        let r = D / 2
+        let t = mix(tint, white, 0.2)
+        ctx.fill(circle, with: .linearGradient(
+            Gradient(stops: [
+                .init(color: rgb(mix(t, white, 0.9), 1), location: 0),
+                .init(color: rgb(mix(t, white, 0.5), 1), location: 0.28),
+                .init(color: rgb(mix(t, deep, 0.75), 1), location: 0.5),
+                .init(color: rgb(mix(t, white, 0.65), 1), location: 0.58),
+                .init(color: rgb(mix(t, deep, 0.35), 1), location: 0.82),
+                .init(color: rgb(mix(t, white, 0.4), 1), location: 1),
+            ]),
+            startPoint: CGPoint(x: 0, y: -r), endPoint: CGPoint(x: 0, y: r)))
+        ctx.stroke(circle, with: .linearGradient(
+            Gradient(colors: [Color.white, Color.black.opacity(0.7)]),
+            startPoint: CGPoint(x: -r, y: -r), endPoint: CGPoint(x: r, y: r)), lineWidth: max(1, 0.03 * D))
+        // Brillos duros.
+        ctx.fill(Path(ellipseIn: CGRect(x: -0.32 * D, y: -0.4 * D, width: 0.3 * D, height: 0.1 * D)),
+                 with: .color(Color.white.opacity(0.95)))
+        ctx.fill(Path(ellipseIn: CGRect(x: 0.18 * D, y: 0.26 * D, width: 0.12 * D, height: 0.05 * D)),
+                 with: .color(Color.white.opacity(0.7)))
     }
 
     static func drawEyes(_ ctx: inout GraphicsContext, f: CharacterFrame, D: CGFloat) {
@@ -184,7 +228,7 @@ enum OrbexPainter {
 
     /// Brazo en forma de gota: punta arriba (hombro), bulbo abajo. `raise` lo levanta hacia afuera.
     static func drawArm(_ ctx: inout GraphicsContext, side: Double, raise: Double, D: CGFloat,
-                        tint: (r: Double, g: Double, b: Double)) {
+                        tint: (r: Double, g: Double, b: Double), material: OrbexMaterial = .glass) {
         var arm = ctx
         arm.translateBy(x: CGFloat(side) * 0.45 * D, y: 0.0)
         arm.rotate(by: .radians(-side * raise))
@@ -194,32 +238,41 @@ enum OrbexPainter {
         p.addCurve(to: CGPoint(x: 0, y: L), control1: CGPoint(x: w * 1.1, y: L * 0.35), control2: CGPoint(x: w * 1.25, y: L))
         p.addCurve(to: CGPoint(x: 0, y: -0.02 * D), control1: CGPoint(x: -w * 1.25, y: L), control2: CGPoint(x: -w * 1.1, y: L * 0.35))
         p.closeSubpath()
-        drawGlassPart(&arm, p, bounds: CGRect(x: -w, y: 0, width: 2 * w, height: L), D: D, tint: tint)
+        drawGlassPart(&arm, p, bounds: CGRect(x: -w, y: 0, width: 2 * w, height: L), D: D, tint: tint, material: material)
     }
 
     static func drawLeg(_ ctx: inout GraphicsContext, side: Double, bodyCenter: CGPoint, footY: CGFloat,
-                        D: CGFloat, tint: (r: Double, g: Double, b: Double), crouch: Double) {
+                        D: CGFloat, tint: (r: Double, g: Double, b: Double), crouch: Double,
+                        material: OrbexMaterial = .glass) {
         let x = bodyCenter.x + CGFloat(side) * 0.17 * D
         let top = bodyCenter.y + 0.34 * D
         let legW = 0.11 * D
         let legH = max(0.02 * D, footY - top)
         let leg = Path(roundedRect: CGRect(x: x - legW / 2, y: top, width: legW, height: legH),
                        cornerRadius: legW / 2)
-        drawGlassPart(&ctx, leg, bounds: CGRect(x: x - legW / 2, y: top, width: legW, height: legH), D: D, tint: tint)
+        drawGlassPart(&ctx, leg, bounds: CGRect(x: x - legW / 2, y: top, width: legW, height: legH), D: D, tint: tint,
+                      material: material)
 
         let footW = 0.22 * D, footH = 0.1 * D
         let fx = x + CGFloat(side) * 0.02 * D
         let foot = Path(roundedRect: CGRect(x: fx - footW / 2, y: footY - footH / 2, width: footW, height: footH),
                         cornerRadius: footH / 2)
         drawGlassPart(&ctx, foot, bounds: CGRect(x: fx - footW / 2, y: footY - footH / 2, width: footW, height: footH),
-                      D: D, tint: tint)
+                      D: D, tint: tint, material: material)
     }
 
     /// Relleno de vidrio para brazos, piernas y pies.
     static func drawGlassPart(_ ctx: inout GraphicsContext, _ path: Path, bounds: CGRect, D: CGFloat,
-                              tint: (r: Double, g: Double, b: Double)) {
+                              tint: (r: Double, g: Double, b: Double), material: OrbexMaterial = .glass) {
+        let alpha: (Double, Double, Double)
+        switch material {
+        case .glass: alpha = (0.42, 0.2, 0.45)
+        case .solid, .chrome: alpha = (1, 1, 1)
+        }
+        let light = material == .chrome ? mix(tint, white, 0.85) : mix(white, tint, 0.4)
+        let dark = material == .chrome ? mix(tint, deep, 0.7) : mix(tint, deep, 0.3)
         ctx.fill(path, with: .linearGradient(
-            Gradient(colors: [rgb(mix(white, tint, 0.4), 0.42), rgb(tint, 0.2), rgb(mix(tint, deep, 0.3), 0.45)]),
+            Gradient(colors: [rgb(light, alpha.0), rgb(material == .glass ? tint : mix(tint, white, 0.3), alpha.1), rgb(dark, alpha.2)]),
             startPoint: CGPoint(x: bounds.minX, y: bounds.minY), endPoint: CGPoint(x: bounds.maxX, y: bounds.maxY)))
         ctx.stroke(path, with: .linearGradient(
             Gradient(colors: [Color.white.opacity(0.8), Color.white.opacity(0.3)]),

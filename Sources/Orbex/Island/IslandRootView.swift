@@ -18,13 +18,7 @@ struct IslandRootView: View {
             ZStack(alignment: .top) {
                 shape
                     .fill(Color.black)
-                    .overlay(
-                        // Brillo sutil de vidrio en el borde cuando está desplegada.
-                        shape.stroke(
-                            LinearGradient(colors: [Color.white.opacity(0), Color.white.opacity(expanded ? 0.16 : 0.05)],
-                                           startPoint: .top, endPoint: .bottom),
-                            lineWidth: 1)
-                    )
+                    .overlay(IslandSkinBorder(shape: shape, theme: model.themeStyle, expanded: expanded))
                 IslandContentView(model: model)
                     .frame(width: w, height: h, alignment: .top)
                     .clipShape(IslandShape(bottomRadius: CGFloat(size.bottomRadius), shoulder: 0))
@@ -165,13 +159,19 @@ struct WingsContent: View {
             }
             .frame(height: notchHeight)
 
-            Text(statusText)
-                .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                .foregroundStyle(attention ? Color(red: 1, green: 0.8, blue: 0.4) : theme.secondaryText)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .padding(.horizontal, 10)
-                .frame(maxWidth: .infinity)
+            Group {
+                if theme.id == .y2k {
+                    LCDText(text: statusText, size: 8.5)
+                } else {
+                    Text(statusText)
+                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(attention ? Color(red: 1, green: 0.8, blue: 0.4) : theme.secondaryText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity)
             Spacer(minLength: 0)
         }
     }

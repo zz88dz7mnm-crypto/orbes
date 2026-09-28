@@ -27,6 +27,8 @@ struct CharacterFrame {
     var crouch: Double = 0
 
     var tint: OrbexTint = .clear
+    /// Material según el tema (vidrio, sólido o cromo Y2K).
+    var material: OrbexMaterial = .glass
     var extras: [Extra] = []
 
     enum Extra {
@@ -37,6 +39,19 @@ struct CharacterFrame {
         case exclamation(phase: Double)
         case dot(x: Double, y: Double)
         case sweat(phase: Double)
+    }
+}
+
+/// Material del cuerpo de ORBEX según el tema (Fase 5).
+enum OrbexMaterial {
+    case glass, solid, chrome
+
+    init(theme: ThemeID) {
+        switch theme {
+        case .liquidGlass: self = .glass
+        case .macClean: self = .solid
+        case .y2k: self = .chrome
+        }
     }
 }
 

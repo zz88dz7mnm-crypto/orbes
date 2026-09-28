@@ -120,6 +120,9 @@ struct HomePageView: View {
                         .font(.system(size: 10, design: .rounded))
                         .foregroundStyle(theme.tertiaryText)
                         .lineLimit(2)
+                    if theme.id == .y2k {
+                        Y2KEqualizer(level: model.isPlayingMusic ? 1 : 0.35)
+                    }
                 }
                 Spacer(minLength: 0)
             }

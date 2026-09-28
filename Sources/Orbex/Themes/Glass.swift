@@ -180,10 +180,112 @@ struct OrbexActionButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)
-            .orbexCard(cornerRadius: 12)
+            .modifier(ActionButtonSkin(theme: theme))
             .scaleEffect(hovering ? 1.04 : 1)
         }
         .buttonStyle(.plain)
         .onHover { h in withAnimation(theme.softSpring) { hovering = h } }
+    }
+}
+
+
+// MARK: - Piezas por tema (Fase 5)
+
+/// Piel de los botones: vidrio (Liquid Glass), sobrio (macOS limpio) o gelatina brillante (Y2K).
+struct ActionButtonSkin: ViewModifier {
+    let theme: ThemeStyle
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch theme.id {
+        case .y2k:
+            content.background(JellyBackground(tint: theme.accent))
+        default:
+            content.orbexCard(cornerRadius: 12)
+        }
+    }
+}
+
+/// Botón "gelatina" de los 2000: cápsula traslúcida con brillo arriba.
+struct JellyBackground: View {
+    let tint: Color
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        ZStack {
+            shape.fill(LinearGradient(colors: [tint.opacity(0.55), tint.opacity(0.22), tint.opacity(0.45)],
+                                      startPoint: .top, endPoint: .bottom))
+            shape.inset(by: 2)
+                .fill(LinearGradient(colors: [Color.white.opacity(0.55), Color.white.opacity(0)],
+                                     startPoint: .top, endPoint: .center))
+                .padding(.bottom, 8)
+            shape.strokeBorder(LinearGradient(colors: [Color.white.opacity(0.8), Color.black.opacity(0.5)],
+                                              startPoint: .top, endPoint: .bottom), lineWidth: 1)
+        }
+    }
+}
+
+/// Pantallita LCD de segmentos (Y2K): texto verde con brillo sobre fondo oscuro.
+struct LCDText: View {
+    let text: String
+    var size: CGFloat = 10
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: size, weight: .bold, design: .monospaced))
+            .foregroundStyle(Color(red: 0.45, green: 1, blue: 0.55))
+            .shadow(color: Color(red: 0.3, green: 1, blue: 0.4).opacity(0.8), radius: 3)
+            .lineLimit(1)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color(red: 0.03, green: 0.08, blue: 0.04))
+                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color.white.opacity(0.18), lineWidth: 0.5))
+            )
+    }
+}
+
+/// Ecualizador animado (Y2K). `level` 0…1 sube las barras (p. ej. con la música).
+struct Y2KEqualizer: View {
+    var bars: Int = 7
+    var level: Double = 0.5
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: false)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .bottom, spacing: 2) {
+                ForEach(0..<bars, id: \.self) { i in
+                    let v = 0.25 + 0.75 * abs(sin(t * (2.1 + Double(i) * 0.37) + Double(i))) * (0.4 + 0.6 * level)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(LinearGradient(colors: [Color(red: 1, green: 0.3, blue: 0.2), Color(red: 1, green: 0.85, blue: 0.2),
+                                                      Color(red: 0.35, green: 1, blue: 0.4)],
+                                             startPoint: .top, endPoint: .bottom))
+                        .frame(width: 3, height: CGFloat(4 + 14 * v))
+                }
+            }
+            .frame(height: 18, alignment: .bottom)
+        }
+    }
+}
+
+/// Borde de la isla desplegada según el tema.
+struct IslandSkinBorder<S: Shape>: View {
+    let shape: S
+    let theme: ThemeStyle
+    let expanded: Bool
+
+    @ViewBuilder
+    var body: some View {
+        switch theme.id {
+        case .liquidGlass:
+            shape.stroke(LinearGradient(colors: [Color.white.opacity(0), Color.white.opacity(expanded ? 0.16 : 0.05)],
+                                        startPoint: .top, endPoint: .bottom), lineWidth: 1)
+        case .macClean:
+            shape.stroke(Color.white.opacity(expanded ? 0.1 : 0.03), lineWidth: 0.75)
+        case .y2k:
+            shape.stroke(LinearGradient(colors: [Color(white: 0.9), Color(white: 0.35), Color(white: 0.75), Color(white: 0.25)],
+                                        startPoint: .top, endPoint: .bottom), lineWidth: expanded ? 2 : 0.75)
+        }
     }
 }
