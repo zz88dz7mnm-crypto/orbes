@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 24 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 28 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-24%25-3fa7ff?style=for-the-badge" alt="Avance 24 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-28%25-3fa7ff?style=for-the-badge" alt="Avance 28 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓░░░░░░░░░░░░░░░ 24 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓░░░░░░░░░░░░░░ 28 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: esperando servicios del sistema y configuración (2 subagentes de la Fase 1)</h3>
+<h3 align="center">🛠️ Ahora mismo: esperando la ventana de Configuración (último subagente de la Fase 1)</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 23:01 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 23:05 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -38,10 +38,10 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 
 ## Fase 1 — Núcleo visual (30 %)
 - [x] Package.swift + OrbexCore (estados, geometría de isla, motor de vida, expresiones) + tests
-- [~] Medición del notch, panel de la isla, morph con resorte, hover/clic, sin notch, cambio de resolución
-- [~] Personaje ORBEX por código (vidrio, ojos que siguen el cursor, brazos, piernas, poses, colores, clics/mareo, dormido)
-- [~] Tema Liquid Glass + reducir movimiento/transparencia + claro/oscuro; sonidos base sintetizados
-- [ ] Configuración básica con vista previa; primer arranque (acceso directo, inicio con la Mac)
+- [x] Medición del notch, panel de la isla, morph con resorte, hover/clic, sin notch, cambio de resolución
+- [x] Personaje ORBEX por código (vidrio, ojos que siguen el cursor, brazos, piernas, poses, colores, clics/mareo, dormido)
+- [x] Tema Liquid Glass + reducir movimiento/transparencia + claro/oscuro; sonidos base sintetizados
+- [~] Configuración básica con vista previa; primer arranque (acceso directo, inicio con la Mac) — bienvenida, acceso directo e inicio con la Mac listos; falta la ventana de Configuración
 - [x] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions
 
 ## Fase 2 — Asistente y utilidades (20 %)
@@ -89,3 +89,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 22 % | Isla en el notch: panel, clics que pasan, hover, estados, página de inicio, menú de barra, arranque |
 | 28/09/2026 | 22 % | Swift 6.1 en Linux (Docker): OrbexCore compila, 34/34 pruebas OK |
 | 28/09/2026 | 24 % | Empaquetado completo: build-app, install, make-dmg, uninstall, ícono y workflow manual |
+| 28/09/2026 | 28 % | Servicios del sistema: sonidos sintetizados, atajos, inicio con la Mac, acceso directo, ícono de barra, bienvenida |
