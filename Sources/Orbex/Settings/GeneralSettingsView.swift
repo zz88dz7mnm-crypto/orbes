@@ -74,7 +74,8 @@ struct GeneralSettingsView: View {
                     Spacer()
                     Button("Volver a mostrar la bienvenida") {
                         model.settings.firstRunDone = false
-                        welcomeMessage = "Listo: la bienvenida se va a mostrar la próxima vez que abras ORBEX."
+                        FirstRunWindowController.shared.show()
+                        welcomeMessage = "Listo: te muestro la bienvenida de nuevo."
                     }
                     .disabled(!model.settings.firstRunDone)
                 }
