@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Info.plist de ORBEX.app.
+  Lo copia scripts/build-app.sh a dist/ORBEX.app/Contents/Info.plist.
+  Valores literales (no hay Xcode que reemplace variables).
+  Si cambiás la versión, cambiá CFBundleShortVersionString y subí CFBundleVersion.
+-->
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>es</string>
+	<key>CFBundleName</key>
+	<string>ORBEX</string>
+	<key>CFBundleDisplayName</key>
+	<string>ORBEX</string>
+	<key>CFBundleExecutable</key>
+	<string>Orbex</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.orbex.ORBEX</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>MacOSX</string>
+	</array>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 ORBEX. Todos los derechos reservados.</string>
+
+	<!-- Textos que macOS muestra al pedir cada permiso (solo en el primer uso). -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>ORBEX usa la automatización para controlar Spotify, crear y leer notas en Apple Notas, abrir tus sesiones en Terminal o iTerm2 y mostrar archivos en el Finder. Solo lo hace cuando vos se lo pedís.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>ORBEX necesita acceso al Escritorio para crear (o borrar) el acceso directo a la app.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ORBEX usa el micrófono para la captura por voz: le hablás y transcribe lo que decís. Solo escucha mientras mantenés activa la captura.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ORBEX usa el reconocimiento de voz de macOS para convertir en texto lo que le dictás.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>ORBEX escucha el audio del sistema (sin grabarlo ni enviarlo a ningún lado) para bailar al ritmo de la música que estás reproduciendo.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>ORBEX lee tu calendario para mostrarte cuánto falta para tu próximo evento.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>ORBEX lee tu calendario para mostrarte cuánto falta para tu próximo evento.</string>
+</dict>
+</plist>
