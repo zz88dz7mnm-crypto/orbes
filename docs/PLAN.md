@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 33 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 39 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-33%25-3fa7ff?style=for-the-badge" alt="Avance 33 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-39%25-3fa7ff?style=for-the-badge" alt="Avance 39 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓░░░░░░░░░░░░░ 33 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓░░░░░░░░░░░░ 39 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: Fase 2 en marcha: utilidades (F2-A) + asistente Claude CLI con Clawd (F2-B); revisión final de la Fase 1 en paralelo</h3>
+<h3 align="center">🛠️ Ahora mismo: Fase 2: timers y notas (F2-A) + puente con claude y panel de chat (F2-B)</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 23:18 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 23:28 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -46,10 +46,21 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 
 - [ ] Compilación real en macOS (tu Mac con `./scripts/install.sh` o GitHub Actions) — pendiente
 
-## Fase 2 — Asistente y utilidades (20 %)
-- [~] Panel del asistente: **solo Claude vía `claude` CLI local** (sin claves de API), chat interactivo, ORBEX se pone naranja y aparece la mascota de Claude Code, atajo global
-- [~] Parser de comandos en español: abrir apps (allowlist), notas, temporizadores
-- [~] Temporizadores y cronómetro con vueltas, persistentes, anillo de vidrio
+## Fase 2 — Asistente y utilidades (20 %) — llevamos ~6 de 20
+Utilidades (10):
+- [x] Entender comandos en español (parser, duraciones, horarios, alias de apps) — 3
+- [~] Timers, cronómetro y pomodoro (lógica) — 1 de 2
+- [ ] Notas y reglas de autonomía — 1
+- [ ] Pantallas Timers/Notas, abrir apps, ejecutor de comandos — 3
+- [ ] Secciones de Configuración (Timers, Notas, Acciones) — 1
+Asistente (8):
+- [x] Lógica del chat: modelos, lector del stream de `claude`, argumentos, formato — 2
+- [~] Clawd pixelado (sprite listo, falta la vista animada) — 0,5 de 1
+- [ ] Puente con el `claude` local + memoria del chat — 2
+- [ ] Panel del chat interactivo, ORBEX naranja — 2
+- [ ] Sección de Configuración del asistente — 1
+Integración (2):
+- [ ] Conectar páginas y panel en la isla + Configuración — 2
 
 ## Fase 3 — Sesiones de código (15 %)
 - [ ] `orbex-hook` + servidor de socket Unix (nunca bloquea a Claude Code)
@@ -94,3 +105,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 28 % | Servicios del sistema: sonidos sintetizados, atajos, inicio con la Mac, acceso directo, ícono de barra, bienvenida |
 | 28/09/2026 | 33 % | Configuración completa con vista previa en vivo; toda la Fase 1 escrita |
 | 28/09/2026 | 33 % | Arranca la Fase 2 con 2 subagentes |
+| 28/09/2026 | 39 % | Fase 2: comandos en español y lógica del chat listos; Clawd dibujado |
