@@ -21,3 +21,4 @@ Registro de decisiones del proyecto. Las del informe original están en `00-info
 | 28/09/2026 | Con el asistente activo, **ORBEX se pone naranja** y aparece una **mascota chica: Clawd**, el bichito pixelado de Claude Code (dibujado por código, uso personal) | Pedido del dueño |
 | 28/09/2026 | Las sesiones de `claude` que lanza ORBEX llevan `ORBEX_INTERNAL=1`: el relé de hooks (Fase 3) las ignora | Evitar que el asistente aparezca como sesión o pida aprobaciones |
 | 28/09/2026 | **Sin pruebas durante las fases**: se escribe el código y se sube; una sola pasada de corrección de errores al final | Pedido del dueño: ahorrar tokens |
+| 28/09/2026 | **No se piensa en compilar en la Mac durante el desarrollo**: el foco es hacer la app. El dueño la instala al final con Claude en su Mac | Pedido del dueño |

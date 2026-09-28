@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 39 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 42 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-39%25-3fa7ff?style=for-the-badge" alt="Avance 39 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-42%25-3fa7ff?style=for-the-badge" alt="Avance 42 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓░░░░░░░░░░░░ 39 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓░░░░░░░░░░░░ 42 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: Fase 2: timers y notas (F2-A) + puente con claude y panel de chat (F2-B)</h3>
+<h3 align="center">🛠️ Ahora mismo: Fase 2: notas + pantallas + ejecutor (F2-A) y puente con claude + panel de chat (F2-B)</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 23:28 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 23:30 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -36,7 +36,7 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] `design/character/hoja-personaje.webp` + especificación del personaje
 - [x] `design/references/coucou-notes.md` (estudio de la referencia)
 
-## Fase 1 — Núcleo visual (30 %) ✅ escrita
+## Fase 1 — Núcleo visual (30 %) ✅
 - [x] Package.swift + OrbexCore (estados, geometría de isla, motor de vida, expresiones) + tests
 - [x] Medición del notch, panel de la isla, morph con resorte, hover/clic, sin notch, cambio de resolución
 - [x] Personaje ORBEX por código (vidrio, ojos que siguen el cursor, brazos, piernas, poses, colores, clics/mareo, dormido)
@@ -44,12 +44,11 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] Configuración básica con vista previa; primer arranque (acceso directo, inicio con la Mac)
 - [x] Ícono generado por código; scripts build/dmg/install; workflow manual de GitHub Actions
 
-- [ ] Compilación real en macOS (tu Mac con `./scripts/install.sh` o GitHub Actions) — pendiente
 
-## Fase 2 — Asistente y utilidades (20 %) — llevamos ~6 de 20
+## Fase 2 — Asistente y utilidades (20 %) — llevamos ~7,5 de 20
 Utilidades (10):
 - [x] Entender comandos en español (parser, duraciones, horarios, alias de apps) — 3
-- [~] Timers, cronómetro y pomodoro (lógica) — 1 de 2
+- [x] Timers, cronómetro y pomodoro (lógica) — 2
 - [ ] Notas y reglas de autonomía — 1
 - [ ] Pantallas Timers/Notas, abrir apps, ejecutor de comandos — 3
 - [ ] Secciones de Configuración (Timers, Notas, Acciones) — 1
@@ -86,7 +85,7 @@ Integración (2):
 ## Cierre (3 %)
 - [ ] Revisión completa del código
 - [ ] Checklist de criterios de aceptación por fase
-- [ ] Instrucciones finales de instalación
+- [ ] Instrucciones finales de instalación (la instalación en la Mac la hace el dueño con Claude, al final)
 
 ---
 
@@ -106,3 +105,4 @@ Integración (2):
 | 28/09/2026 | 33 % | Configuración completa con vista previa en vivo; toda la Fase 1 escrita |
 | 28/09/2026 | 33 % | Arranca la Fase 2 con 2 subagentes |
 | 28/09/2026 | 39 % | Fase 2: comandos en español y lógica del chat listos; Clawd dibujado |
+| 28/09/2026 | 42 % | Fase 1 cuenta completa; timers/cronómetro/pomodoro listos |
