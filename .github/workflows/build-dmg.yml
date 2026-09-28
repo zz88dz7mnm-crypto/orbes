@@ -1,0 +1,35 @@
+# Genera ORBEX.dmg en una Mac de GitHub. Solo corre a mano:
+# pestaña Actions → "Armar ORBEX.dmg" → Run workflow.
+# El .dmg queda como artefacto descargable del run (firma ad hoc, arm64).
+name: Armar ORBEX.dmg
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dmg:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Bajar el código
+        uses: actions/checkout@v4
+
+      - name: Versión de Swift
+        run: swift --version
+
+      - name: Pruebas (OrbexCore)
+        run: swift test
+        continue-on-error: true
+
+      - name: Compilar la app y armar el .dmg
+        run: bash scripts/make-dmg.sh
+
+      - name: Subir ORBEX.dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: ORBEX-dmg
+          path: dist/ORBEX.dmg
+          if-no-files-found: error
