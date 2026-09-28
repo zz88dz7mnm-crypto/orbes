@@ -1,7 +1,7 @@
 import Foundation
 
 /// Expresiones de ORBEX con solo dos óvalos (informe §4.5).
-public enum Expression: String, CaseIterable, Codable, Sendable {
+public enum FaceExpression: String, CaseIterable, Codable, Sendable {
     case neutral
     case happy        // arquitos hacia arriba
     case annoyed      // achatados por arriba
@@ -49,7 +49,7 @@ public struct EyeShape: Equatable, Sendable {
     public static let baseSeparation = 0.14
     public static let baseY = -0.06
 
-    public static func forExpression(_ e: Expression) -> EyeShape {
+    public static func forExpression(_ e: FaceExpression) -> EyeShape {
         switch e {
         case .neutral:   return EyeShape()
         case .happy:     return EyeShape(width: 0.1, height: 0.08, offsetY: -0.01, glyph: .arcUp)

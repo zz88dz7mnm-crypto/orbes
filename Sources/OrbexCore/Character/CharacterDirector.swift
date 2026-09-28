@@ -105,8 +105,8 @@ public enum Greeting {
 public enum CharacterDirector {
     public struct Mood: Equatable, Sendable {
         public var pose: Pose
-        public var expression: Expression
-        public init(pose: Pose, expression: Expression) {
+        public var expression: FaceExpression
+        public init(pose: Pose, expression: FaceExpression) {
             self.pose = pose
             self.expression = expression
         }

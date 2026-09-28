@@ -76,7 +76,7 @@ final class LifeSchedulerTests: XCTestCase {
 
 final class ExpressionTests: XCTestCase {
     func testEveryExpressionHasShape() {
-        for e in Expression.allCases {
+        for e in FaceExpression.allCases {
             let s = EyeShape.forExpression(e)
             XCTAssertGreaterThan(s.width, 0)
             XCTAssertGreaterThan(s.height, 0)
