@@ -9,6 +9,12 @@ if arguments.contains("--uninstall-hooks") {
     exit(0)
 }
 
+if arguments.contains("--disable-login-item") {
+    LaunchAtLogin.set(false)
+    print("ORBEX: inicio con la Mac desactivado.")
+    exit(0)
+}
+
 if DesktopShortcut.handleCLI(arguments) {
     exit(0)
 }

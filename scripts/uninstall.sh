@@ -151,6 +151,10 @@ if [ -n "$APP_BIN" ]; then
         || warn "No se pudieron quitar los hooks automáticamente.
          Revisá ~/.claude/settings.json y borrá las entradas que mencionen orbex-hook."
 
+    step "Quitando \"iniciar con la Mac\""
+    run_with_timeout 20 "$APP_BIN" --disable-login-item \
+        || warn "No se pudo quitar el inicio automático; revisá Ajustes del Sistema → General → Ítems de inicio."
+
     step "Quitando el acceso directo del Escritorio"
     run_with_timeout 20 "$APP_BIN" --remove-shortcut \
         || warn "La app no pudo quitar el acceso directo; lo intento a mano."
