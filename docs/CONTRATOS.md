@@ -16,7 +16,15 @@ Cada módulo es autocontenido. El agente principal los conecta en `AppModel`, la
 - Tamaños: página de la isla abierta ≈ **270 × 230 pt**; panel del asistente ≈ **460 × 520 pt** (variable).
 - Autosave: commit + push de **tus rutas** después de cada archivo o grupo chico (`git add <rutas>`; nunca `git add -A`). `git pull --rebase` antes del push; si hay `index.lock`, esperar 2 s y reintentar.
 
-## Fase actual: 1 — Núcleo visual
+## Fase actual: 2 — Asistente y utilidades
+
+| Quién | Rutas | Entrega |
+|---|---|---|
+| Principal | integración en la isla (páginas Timers/Notas, panel del asistente), Configuración, `docs/` | — |
+| F2-A · Utilidades | `OrbexCore/{Commands,Timers,Notes,Autonomy}/`, `Orbex/Utilities/` | `CommandParser`, `CommandExecutor`, `TimersStore`, `NotesStore`, `AppLauncher`, vistas y secciones de Configuración |
+| F2-B · Asistente | `OrbexCore/Assistant/`, `Orbex/Assistant/` | `ClaudeCLI`, `AssistantStore`, `AssistantPanelView`, `ClaudePetView` (Clawd), `AssistantSettingsView` |
+
+## Fase 1 — Núcleo visual (cerrada, en revisión final)
 Regla: una fase a la vez. Los subagentes trabajan SOLO en la fase actual.
 
 | Quién | Rutas | Entrega |

@@ -8,9 +8,9 @@
 
 <h3 align="center">▓▓▓▓▓▓▓░░░░░░░░░░░░░ 33 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: revisión final de la Fase 1 (subagente revisor) — después arranca la Fase 2</h3>
+<h3 align="center">🛠️ Ahora mismo: Fase 2 en marcha: utilidades (F2-A) + asistente Claude CLI con Clawd (F2-B); revisión final de la Fase 1 en paralelo</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 23:09 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 28/09/2026 23:18 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -47,9 +47,9 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [~] Revisión final de la Fase 1 (errores de compilación)
 
 ## Fase 2 — Asistente y utilidades (20 %)
-- [ ] Panel del asistente: **solo Claude vía `claude` CLI local** (sin claves de API), chat interactivo, ORBEX se pone naranja y aparece la mascota de Claude Code, atajo global
-- [ ] Parser de comandos en español: abrir apps (allowlist), notas, temporizadores
-- [ ] Temporizadores y cronómetro con vueltas, persistentes, anillo de vidrio
+- [~] Panel del asistente: **solo Claude vía `claude` CLI local** (sin claves de API), chat interactivo, ORBEX se pone naranja y aparece la mascota de Claude Code, atajo global
+- [~] Parser de comandos en español: abrir apps (allowlist), notas, temporizadores
+- [~] Temporizadores y cronómetro con vueltas, persistentes, anillo de vidrio
 
 ## Fase 3 — Sesiones de código (15 %)
 - [ ] `orbex-hook` + servidor de socket Unix (nunca bloquea a Claude Code)
@@ -93,3 +93,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 24 % | Empaquetado completo: build-app, install, make-dmg, uninstall, ícono y workflow manual |
 | 28/09/2026 | 28 % | Servicios del sistema: sonidos sintetizados, atajos, inicio con la Mac, acceso directo, ícono de barra, bienvenida |
 | 28/09/2026 | 33 % | Configuración completa con vista previa en vivo; toda la Fase 1 escrita |
+| 28/09/2026 | 33 % | Arranca la Fase 2 con 2 subagentes |
