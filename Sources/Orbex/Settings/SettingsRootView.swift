@@ -3,8 +3,7 @@ import OrbexCore
 
 /// Secciones de Configuración. Las de fases siguientes se suman cuando llegue su fase.
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case personaje, isla, tema, sonidos, general, accesibilidad, acercaDe
-    // Fase 2: asistente (IA: Claude vía CLI local), timers (temporizadores y acciones), notas
+    case personaje, isla, tema, sonidos, asistente, timers, notas, acciones, general, accesibilidad, acercaDe
     // Fase 3: claudeCode (hooks con diff, terminal preferida, qué eventos mostrar)
     // Fase 4: reloj (esfera, tamaño, transparencia, anclaje, tic-tac) y memoria (dentro de Notas)
     // Fase 6: integraciones (cada servicio con su interruptor y su clave en el Keychain)
@@ -18,6 +17,10 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .isla: return "Isla"
         case .tema: return "Tema"
         case .sonidos: return "Sonidos"
+        case .asistente: return "Asistente (Claude)"
+        case .timers: return "Timers"
+        case .notas: return "Notas"
+        case .acciones: return "Acciones y apps"
         case .general: return "General"
         case .accesibilidad: return "Accesibilidad y rendimiento"
         case .acercaDe: return "Acerca de"
@@ -30,6 +33,10 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .isla: return "rectangle.topthird.inset.filled"
         case .tema: return "paintpalette"
         case .sonidos: return "speaker.wave.2"
+        case .asistente: return "sparkles"
+        case .timers: return "timer"
+        case .notas: return "note.text"
+        case .acciones: return "bolt.circle"
         case .general: return "gearshape"
         case .accesibilidad: return "accessibility"
         case .acercaDe: return "info.circle"
@@ -67,6 +74,10 @@ struct SettingsRootView: View {
         case .isla: IslaSettingsView()
         case .tema: TemaSettingsView()
         case .sonidos: SonidosSettingsView()
+        case .asistente: AssistantSettingsView()
+        case .timers: TimersSettingsView()
+        case .notas: NotesSettingsView()
+        case .acciones: ActionsSettingsView()
         case .general: GeneralSettingsView()
         case .accesibilidad: AccesibilidadSettingsView()
         case .acercaDe: AcercaDeSettingsView()

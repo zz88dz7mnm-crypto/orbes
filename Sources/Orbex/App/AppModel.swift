@@ -318,6 +318,27 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Archivos soltados sobre la isla: ORBEX los "traga" y abre el asistente con el archivo adjunto.
+    func receiveDroppedFiles(_ providers: [NSItemProvider]) -> Bool {
+        let fileType = "public.file-url"
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(fileType) }) else {
+            return false
+        }
+        _ = provider.loadObject(ofClass: URL.self) { url, _ in
+            guard let url else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    let model = AppModel.shared
+                    OrbexBus.play(.fileSwallowed)
+                    model.brain.show(.happy, for: 1.5)
+                    if model.islandState != .assistant { model.machine.handle(.toggleAssistant) }
+                    AssistantStore.shared.attach(fileURL: url)
+                }
+            }
+        }
+        return true
+    }
+
     /// Acciones globales (menú, atajos, bus).
     func perform(_ action: String) {
         switch action {

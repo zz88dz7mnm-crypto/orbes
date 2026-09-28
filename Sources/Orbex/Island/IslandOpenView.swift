@@ -8,8 +8,9 @@ struct IslandOpenView: View {
     let wing: CGFloat
     @Environment(\.orbexTheme) private var theme
 
-    /// Páginas disponibles en esta fase. Las fases siguientes agregan las suyas acá.
-    private var pages: [IslandPage] { [.home] }
+    /// Páginas disponibles. Las fases siguientes agregan las suyas acá
+    /// (Fase 3: .sessions · Fase 6: .music, .integrations).
+    private var pages: [IslandPage] { [.home, .timers, .notes] }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,6 +48,10 @@ struct IslandOpenView: View {
                 switch model.page {
                 case .home:
                     HomePageView(model: model)
+                case .timers:
+                    TimersPageView()
+                case .notes:
+                    NotesPageView()
                 default:
                     // Fases siguientes.
                     HomePageView(model: model)
@@ -121,11 +126,13 @@ struct HomePageView: View {
 
             HStack(spacing: 6) {
                 OrbexActionButton(symbol: "sparkles", title: "Asistente") { model.perform("assistant") }
-                OrbexActionButton(symbol: "clock", title: "Reloj") { model.perform("clock") }
-                OrbexActionButton(symbol: "hand.wave", title: "Saludar") {
-                    model.brain.greet()
-                    OrbexBus.play(.greet)
+                OrbexActionButton(symbol: "timer", title: "Timer 5′") {
+                    Task { @MainActor in
+                        let result = await CommandExecutor.shared.execute(.timer(seconds: 300, label: nil))
+                        OrbexBus.toast(result.message, symbol: "timer")
+                    }
                 }
+                OrbexActionButton(symbol: "note.text.badge.plus", title: "Nota") { model.page = .notes }
                 OrbexActionButton(symbol: "slider.horizontal.3", title: "Ajustes") { model.perform("settings") }
             }
         }

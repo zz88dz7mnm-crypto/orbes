@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import OrbexCore
 
@@ -8,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let model = AppModel.shared
     private var demoWorking = false
     private var demoAttention = false
+    private var cancellables: [AnyCancellable] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Si un cliente cierra el socket antes de tiempo, que no se caiga la app.
@@ -18,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         IslandController.shared.start()
         OrbexHotKeys.installDefaults()
         SettingsWindowController.shared.startObserving()
+        startPhase2Modules()
 
         // Aplicar ajustes que dependen del sistema (por si cambiaron fuera de la app).
         if model.settings.launchAtLogin != LaunchAtLogin.isEnabled {
@@ -37,6 +40,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Abrir ORBEX desde el Dock/Finder/acceso directo cuando ya está corriendo: abrir la isla.
         model.perform("open")
         return false
+    }
+
+    /// Fase 2: timers (se recuperan los guardados), notas y asistente.
+    private func startPhase2Modules() {
+        // La línea de estado debajo del notch muestra el timer en curso.
+        TimersStore.shared.$statusLine
+            .receive(on: DispatchQueue.main)
+            .sink { line in
+                MainActor.assumeIsolated { AppModel.shared.statusLine = line }
+            }
+            .store(in: &cancellables)
+        _ = NotesStore.shared
+        _ = AssistantStore.shared
     }
 
     private func greet() {

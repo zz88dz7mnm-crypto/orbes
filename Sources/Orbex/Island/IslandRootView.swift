@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import OrbexCore
 
 /// Vista raíz del panel: la isla pegada arriba y centrada, que cambia de tamaño con resorte.
@@ -31,6 +32,10 @@ struct IslandRootView: View {
             .frame(width: w + 2 * shoulder, height: h)
             .contentShape(shape)
             .onTapGesture { model.islandClicked() }
+            // Arrastrar un archivo al notch: ORBEX lo "traga" y abre el asistente con el archivo adjunto (informe §5.7).
+            .onDrop(of: [UTType.fileURL], isTargeted: nil) { providers in
+                model.receiveDroppedFiles(providers)
+            }
             .shadow(color: Color.black.opacity(expanded ? 0.5 : 0), radius: expanded ? 20 : 0, y: expanded ? 10 : 0)
             Spacer(minLength: 0)
         }
@@ -65,7 +70,7 @@ struct IslandContentView: View {
             case .open:
                 IslandOpenView(model: model, notchHeight: nh, wing: wing)
             case .assistant:
-                AssistantPlaceholderView(notchHeight: nh)
+                AssistantPanelView()
             }
             if let toast = model.toast, model.islandState != .open, model.islandState != .assistant {
                 ToastView(toast: toast)
@@ -235,30 +240,6 @@ struct ToastView: View {
                 .lineLimit(1)
         }
         .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Asistente (Fase 2)
-
-/// Marcador hasta la Fase 2 (asistente con Claude vía CLI).
-struct AssistantPlaceholderView: View {
-    let notchHeight: CGFloat
-    @Environment(\.orbexTheme) private var theme
-
-    var body: some View {
-        VStack(spacing: 10) {
-            Spacer().frame(height: notchHeight + 16)
-            OrbexView(showLimbs: true)
-                .frame(width: 110, height: 120)
-            Text("El asistente llega en la Fase 2")
-                .font(theme.titleFont)
-                .foregroundStyle(theme.text)
-            Text("Esc para cerrar")
-                .font(.system(size: 10, design: .rounded))
-                .foregroundStyle(theme.tertiaryText)
-            Spacer()
-        }
         .frame(maxWidth: .infinity)
     }
 }
