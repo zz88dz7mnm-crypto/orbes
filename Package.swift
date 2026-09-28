@@ -23,6 +23,10 @@ let package = Package(
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("ServiceManagement"),
                 .linkedFramework("Security"),
+                .linkedFramework("ScreenCaptureKit"),
+                .linkedFramework("Accelerate"),
+                .linkedFramework("CoreMedia"),
+                .linkedFramework("UserNotifications"),
             ]
         ),
         // Relé mínimo de hooks (Claude Code / Codex) → socket Unix de la app.

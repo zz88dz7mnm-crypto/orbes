@@ -24,6 +24,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SessionsStore.shared.start()   // Fase 3: hooks de Claude Code / Codex
         SchedulerStore.shared.start()  // Fase 4: recordatorios y acciones a hora puntual
         _ = MemoryStore.shared         // Fase 4: memoria local (contexto del asistente)
+        MusicStore.shared.start()      // Fase 6: Spotify / Música
+        IntegrationsHub.shared.start() // Fase 6: GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com
+        if UserDefaults.standard.bool(forKey: "orbex.music.beatDetection") {
+            Task { @MainActor in _ = await BeatDetector.shared.start() }
+        }
+        // Las integraciones consultan más seguido solo cuando la isla está abierta.
+        NotificationCenter.default.addObserver(forName: .orbexIslandStateChanged, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                IntegrationsHub.shared.setVisible(AppModel.shared.islandState.isExpanded)
+            }
+        }
 
         // Aplicar ajustes que dependen del sistema (por si cambiaron fuera de la app).
         if model.settings.launchAtLogin != LaunchAtLogin.isEnabled {
