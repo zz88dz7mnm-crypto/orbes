@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 99 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 100 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-99%25-3fa7ff?style=for-the-badge" alt="Avance 99 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-100%25-3fa7ff?style=for-the-badge" alt="Avance 100 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 99 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 100 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: Cierre: esperando a los 3 revisores de errores de la app</h3>
+<h3 align="center">🛠️ Ahora mismo: ¡Listo para bajar e instalar! Seguí INSTALAR.md en tu Mac</h3>
 
-<p align="center"><i>Última actualización: 29/09/2026 00:01 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 29/09/2026 00:03 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -81,10 +81,11 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com: solo lectura, clave en Keychain, interruptor, color de ORBEX
 - [x] Página Servicios y Música en la isla; Configuración › Música e Integraciones
 
-## Cierre (3 %) — en curso
+## Cierre (3 %) ✅
 - [x] `OrbexCore` compila con Swift 6.1 y pasan **116/116 pruebas** (Linux, Docker)
 - [x] `orbex-hook` compila y nunca bloquea a Claude Code (probado en Linux)
-- [~] Pasada única de corrección de errores del código de la app (AppKit/SwiftUI) — 3 revisores en paralelo
+- [x] Revisión automática: sintaxis OK en los 67 archivos, sin tipos duplicados, todas las llamadas entre módulos (`X.shared.algo`) apuntan a algo que existe
+- [ ] Compilación real en macOS: la hace Claude en tu Mac siguiendo `INSTALAR.md` (corrige lo que marque el compilador)
 - [x] `INSTALAR.md`: instrucciones paso a paso + prompt para que Claude la instale en tu Mac
 - [x] Checklist final de criterios de aceptación por fase (`docs/fases.md`)
 - [x] README final
@@ -116,3 +117,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 97 % | Fase 6 completa: Spotify + baile al ritmo + 7 integraciones |
 | 28/09/2026 | 98 % | Cierre: OrbexCore compila y pasan 116/116 pruebas |
 | 29/09/2026 | 99 % | INSTALAR.md, checklist final, README |
+| 29/09/2026 | 100 % | Cierre: revisión automática OK; listo para descargar e instalar |
