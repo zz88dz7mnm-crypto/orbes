@@ -2282,7 +2282,7 @@ struct CalcomDayView: View {
         .transition(.opacity)
     }
     private var dayLabel: String {
-        let f = DateFormatter(); f.locale = Locale(identifier: "es_AR"); f.dateFormat = "EEEE d 'de' MMMM"; return f.string(from: date).capitalized(with: Locale(identifier: "es_AR"))
+        let f = DateFormatter(); f.locale = Locale(identifier: "es_AR"); f.dateFormat = "EEEE d 'de' MMMM"; let t = f.string(from: date); return t.prefix(1).uppercased() + t.dropFirst()
     }
 }
 
