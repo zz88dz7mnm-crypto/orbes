@@ -1,18 +1,72 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 100 %</h1>
+<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 3 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-100%25-3fa7ff?style=for-the-badge" alt="Avance 100 %" height="60">
+  <img src="https://img.shields.io/badge/ETAPA_2-3%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 3 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 100 / 100</h3>
+<h3 align="center">▓░░░░░░░░░░░░░░░░░░░ 3 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: ¡Listo para bajar e instalar! Seguí INSTALAR.md en tu Mac</h3>
+<h3 align="center">🛠️ Ahora mismo: E1 · Clonar Coucou y unificar el cascarón</h3>
 
-<p align="center"><i>Última actualización: 29/09/2026 00:03 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 29/09/2026 00:33 UTC — se actualiza en cada push</i></p>
+
+<p align="center">Etapa 1 (ORBEX propio, fases 0–6): <b>100 % ✅</b> — versión previa en el commit <code>ab818d5</code></p>
 
 ---
+
+# Etapa 2 — ORBEX sobre la base de Coucou
+
+Se clona el código de Coucou (MIT) como cascarón de la app, Mochi se reemplaza por ORBEX con animaciones
+nuevas, y se le aplica todo lo de ORBEX. Plan completo y decisiones: `docs/decisiones.md`; reparto de
+archivos por fase: `docs/CONTRATOS.md`.
+
+Pesos: E0 3 % · E1 17 % · E2 20 % · E3 15 % · E4 5 % · E5 15 % · E6 10 % · E7 7 % · E8 3 % · E9 5 %.
+
+## E0 · Preparación (3 %) ✅
+- [x] Avisos de licencia (THIRD_PARTY_NOTICES, LICENSE), CLAUDE.md regla 13, decisiones, contratos, plan
+
+## E1 · Clonar Coucou y unificar el cascarón (17 %)
+- [ ] Código de Coucou en `Sources/Orbex/Base/` con cabecera MIT; sin assets
+- [ ] Retirar duplicados de ORBEX y de Coucou; resolver 13 choques de nombres
+- [ ] Marca ORBEX (bundle, carpetas, logs, textos); `Package.swift` macOS 15
+- [ ] `AppDelegate` único + `OrbexBridge` + `SoundEngine.play(nombre)`
+- [ ] Sintaxis OK + chequeo de símbolos
+
+## E2 · Personaje ORBEX en el motor (20 %)
+- [ ] `BotEngine` dibuja ORBEX (misma API), mini-ORBEX, portal de vidrio, bugs del motor arreglados
+- [ ] Saludo propio de ORBEX y "tragar archivo" propio
+
+## E3 · Animaciones nuevas y personalidad (15 %)
+- [ ] Caricia, cosquillas, globo al arrastrar, burbujas, órbitas, confeti, empañado, dormir/despertar, estornudo…
+- [ ] Personalidad: saludo por nombre y hora, "te extrañé", rachas, frases, te ve tipear
+
+## E4 · Sonidos y español (5 %)
+- [ ] 28 sonidos sintetizados nuevos para los eventos de Coucou (por tema)
+- [ ] Textos de la UI de Coucou al español
+
+## E5 · Asistente y utilidades en la isla (15 %)
+- [ ] Chat de la isla con `claude` local + Clawd + ORBEX naranja + comandos + memoria
+- [ ] Pestañas Timers, Notas, Música; avisos → vista nota; botón de reloj
+
+## E6 · Temas, reloj, música, notch y sistema (10 %)
+- [ ] Temas Liquid Glass / macOS limpio / Y2K sobre la UI de Coucou
+- [ ] Notch configurable, reloj flotante, bienvenida, atajos, inicio con la Mac, acceso directo
+
+## E7 · Sesiones de Claude Code (7 %)
+- [ ] Motor de ORBEX detrás de la UI de Coucou: aprobaciones y preguntas reales, una pastilla por sesión
+
+## E8 · Configuración, empaquetado y docs (3 %)
+- [ ] Configuración unificada, Info.plist, README, INSTALAR, fases
+- [ ] `scripts/actualizar.sh`: instala la versión nueva sobre la anterior y borra sus restos (app vieja, compilados, hooks viejos de ORBEX/Coucou), sin tocar tus datos sin preguntar; prompt listo para Claude en tu Mac
+
+## E9 · Verificación (5 %)
+- [ ] Pruebas de OrbexCore, sintaxis, símbolos, revisores
+
+---
+
+# Etapa 1 — ORBEX propio (completa)
 
 Pesos: Fase 0 = 5 % · Fase 1 = 30 % · Fase 2 = 20 % · Fase 3 = 15 % · Fase 4 = 12 % · Fase 5 = 8 % · Fase 6 = 7 % · Cierre = 3 %.
 
@@ -118,3 +172,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 98 % | Cierre: OrbexCore compila y pasan 116/116 pruebas |
 | 29/09/2026 | 99 % | INSTALAR.md, checklist final, README |
 | 29/09/2026 | 100 % | Cierre: revisión automática OK; listo para descargar e instalar |
+| 29/09/2026 | E2: 3 % | E0: licencia, reglas, decisiones, contratos y plan de la Etapa 2 |
