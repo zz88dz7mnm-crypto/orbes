@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 43 %</h1>
+<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 55 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ETAPA_2-43%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 43 %" height="60">
+  <img src="https://img.shields.io/badge/ETAPA_2-55%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 55 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓▓░░░░░░░░░░░ 43 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░ 55 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: E3 animaciones + personalidad y E7 sesiones (en paralelo)</h3>
+<h3 align="center">🛠️ Ahora mismo: E3-A animaciones, E7 sesiones, E5-B utilidades (en paralelo)</h3>
 
-<p align="center"><i>Última actualización: 29/09/2026 01:57 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 29/09/2026 01:59 UTC — se actualiza en cada push</i></p>
 
 <p align="center">Etapa 1 (ORBEX propio, fases 0–6): <b>100 % ✅</b> — versión previa en el commit <code>ab818d5</code></p>
 
