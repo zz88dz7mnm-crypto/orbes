@@ -471,19 +471,24 @@ final class IslandWindowController: NSWindowController {
 
         // Hook server expand requests (alerts only)
         NotificationCenter.default.addObserver(forName: .hookExpand, object: nil, queue: .main) { [weak self] note in
-            guard let self, let view = note.object as? IslandView else { return }
-            // Con el reloj flotante afuera, el puente lo guarda en el notch antes de abrir.
-            if ClockController.shared.isVisible {
-                OrbexBridge.shared.openIsland(view)
-            } else {
-                self.expand(to: view)
+            guard let view = note.object as? IslandView else { return }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                // Con el reloj flotante afuera, el puente lo guarda en el notch antes de abrir.
+                if ClockController.shared.isVisible {
+                    OrbexBridge.shared.openIsland(view)
+                } else {
+                    self.expand(to: view)
+                }
             }
         }
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
         NotificationCenter.default.addObserver(forName: .hookReveal, object: nil, queue: .main) { [weak self] _ in
-            guard let self, !ClockController.shared.isVisible else { return }
-            self.fsm.reveal()
+            MainActor.assumeIsolated {
+                guard let self, !ClockController.shared.isVisible else { return }
+                self.fsm.reveal()
+            }
         }
 
         // Collapse requests from views (OK button, etc.)

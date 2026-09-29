@@ -113,6 +113,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         demo.addItem(makeItem("Preocuparse", #selector(demoWorry)))
         demo.addItem(makeItem("Mostrar aviso", #selector(demoToast)))
         demo.addItem(makeItem("Dormir / despertar", #selector(demoSleep)))
+        demo.addItem(.separator())
+        demo.addItem(makeItem("Saludo", #selector(demoGreet)))
+        demo.addItem(makeItem("Cosquillas", #selector(demoTickle)))
         let demoItem = NSMenuItem(title: "Probar estados", action: nil, keyEquivalent: "")
         demoItem.submenu = demo
         menu.addItem(demoItem)
@@ -169,5 +172,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func demoSleep() {
         model.setSleepy(!model.isSleepy)
+    }
+
+    /// El saludo de bienvenida: ORBEX sale del notch y saluda.
+    @objc private func demoGreet() {
+        if ClockController.shared.isVisible { model.perform("clock") }
+        islandController?.fsm.launch()
+        OrbexBus.play(.greet)
+    }
+
+    /// Cosquillas (tres seguidas = mareo). Se ven en la isla abierta: si está cerrada, primero se abre.
+    @objc private func demoTickle() {
+        let open = AppState.shared.mode == .expanded
+        if !open { model.perform("open") }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (open ? 0 : 0.45)) {
+            NotificationCenter.default.post(name: .triggerSlap, object: nil)
+        }
     }
 }

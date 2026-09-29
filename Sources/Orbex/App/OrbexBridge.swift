@@ -52,6 +52,7 @@ final class OrbexBridge {
 
     /// Mide el notch (pantalla elegida + ajuste fino) y se lo pasa a `AppModel` para Configuración.
     func updatePlacement() {
+        island?.applyPlacement()   // la isla también escucha estos avisos; es idempotente
         let s = AppModel.shared.settings
         guard let place = NotchDetector.placement(for: s.screen, adjustW: s.notchAdjustWidth,
                                                   adjustH: s.notchAdjustHeight) else { return }
@@ -120,6 +121,10 @@ final class OrbexBridge {
         ClockController.shared.hide(to: rect)
         OrbexBus.play(.toNotch)
         AppModel.shared.islandDidChange(mode: state.mode, view: state.view)
+        // El reloj "entra" al notch y ORBEX se asoma un momento (si nadie abrió la isla mientras).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            MainActor.assumeIsolated { OrbexBridge.shared.reveal() }
+        }
     }
 
     // MARK: - Avisos
