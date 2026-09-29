@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 AVANCE TOTAL: 98 %</h1>
+<h1 align="center">🔵 AVANCE TOTAL: 99 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ORBEX-98%25-3fa7ff?style=for-the-badge" alt="Avance 98 %" height="60">
+  <img src="https://img.shields.io/badge/ORBEX-99%25-3fa7ff?style=for-the-badge" alt="Avance 99 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 98 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 99 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: Cierre: corrección de errores de la app + INSTALAR.md</h3>
+<h3 align="center">🛠️ Ahora mismo: Cierre: esperando a los 3 revisores de errores de la app</h3>
 
-<p align="center"><i>Última actualización: 28/09/2026 23:59 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 29/09/2026 00:01 UTC — se actualiza en cada push</i></p>
 
 ---
 
@@ -85,9 +85,9 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 - [x] `OrbexCore` compila con Swift 6.1 y pasan **116/116 pruebas** (Linux, Docker)
 - [x] `orbex-hook` compila y nunca bloquea a Claude Code (probado en Linux)
 - [~] Pasada única de corrección de errores del código de la app (AppKit/SwiftUI) — 3 revisores en paralelo
-- [ ] `INSTALAR.md`: instrucciones paso a paso para que Claude la instale en tu Mac (y qué hacer si algo no compila)
-- [ ] Checklist final de criterios de aceptación por fase (`docs/fases.md`)
-- [ ] README final y 100 %
+- [x] `INSTALAR.md`: instrucciones paso a paso + prompt para que Claude la instale en tu Mac
+- [x] Checklist final de criterios de aceptación por fase (`docs/fases.md`)
+- [x] README final
 
 ---
 
@@ -115,3 +115,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 28/09/2026 | 90 % | Fase 5 completa: temas Liquid Glass, macOS limpio y Y2K con sus sonidos |
 | 28/09/2026 | 97 % | Fase 6 completa: Spotify + baile al ritmo + 7 integraciones |
 | 28/09/2026 | 98 % | Cierre: OrbexCore compila y pasan 116/116 pruebas |
+| 29/09/2026 | 99 % | INSTALAR.md, checklist final, README |

@@ -2,6 +2,7 @@
 
 Un compañero de vidrio que vive en el notch de tu MacBook. ORBEX es una esfera translúcida con dos ojos ovalados negros, brazos en forma de gota y piernitas: respira, parpadea, te mira, reacciona, te asiste con IA, vigila tus sesiones de Claude Code y se transforma en un reloj flotante.
 
+> **Para instalarla en tu Mac: [`INSTALAR.md`](INSTALAR.md)** (incluye un prompt listo para que Claude Code la compile e instale).
 > Estado y avance: ver [`docs/PLAN.md`](docs/PLAN.md).
 > Diseño completo: ver [`docs/00-informe-completo.md`](docs/00-informe-completo.md).
 
@@ -43,12 +44,14 @@ También podés abrir `Package.swift` con Xcode y darle a *Run*.
 - **Pasá el mouse por el notch**: ORBEX asoma. **Clic**: se abre la isla. **Esc** o clic afuera: se cierra.
 - **Clic sobre ORBEX**: se achata y se molesta. **3 clics rápidos**: se marea.
 - Menú de la barra (ícono de la esfera con ojos): abrir, asistente, reloj, **Probar estados** (trabajando, te necesito, festejar, dormir…), Configuración.
+- Pestañas de la isla abierta: **Inicio · Código** (sesiones de Claude Code y aprobaciones) **· Timers · Notas · Música · Servicios**.
+- Arrastrá un archivo al notch: ORBEX lo "traga" y lo adjunta al asistente.
 
 | Atajo | Acción |
 |---|---|
 | ⌃⌥O | Abrir la isla |
-| ⌃⌥A | Asistente (Fase 2) |
-| ⌃⌥C | Modo reloj (Fase 4) |
+| ⌃⌥A | Asistente (Claude vía `claude` local) |
+| ⌃⌥C | Reloj flotante |
 | ⌃⌥, | Configuración |
 
 ---
