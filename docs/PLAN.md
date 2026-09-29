@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 92 %</h1>
+<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 95 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ETAPA_2-92%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 92 %" height="60">
+  <img src="https://img.shields.io/badge/ETAPA_2-95%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 95 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 92 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 95 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: E4-B español y E8 docs; después E9 verificación</h3>
+<h3 align="center">🛠️ Ahora mismo: E8 docs; E9 verificación</h3>
 
-<p align="center"><i>Última actualización: 29/09/2026 02:05 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 29/09/2026 02:06 UTC — se actualiza en cada push</i></p>
 
 <p align="center">Etapa 1 (ORBEX propio, fases 0–6): <b>100 % ✅</b> — versión previa en el commit <code>ab818d5</code></p>
 
@@ -177,3 +177,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 29/09/2026 | E2: 40 % | E2 completa: ORBEX en el motor, saludo y portal |
 | 29/09/2026 | E2: 85 % | E5 completa: chat con claude y utilidades en la isla |
 | 29/09/2026 | E2: 92 % | E6 completa |
+| 29/09/2026 | E2: 95 % | E4 completa |
