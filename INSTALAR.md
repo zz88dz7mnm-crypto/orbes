@@ -1,53 +1,83 @@
 # Instalar ORBEX en tu Mac
 
-ORBEX se escribió entero en la nube, pero **nunca se compiló en una Mac**. La lógica pura (`OrbexCore`) sí se compiló con Swift 6.1 y pasan sus 116 pruebas, pero la parte de macOS (AppKit/SwiftUI) solo se revisó a mano. Es probable que la primera compilación tire algunos errores chicos. Por eso lo ideal es instalarla **con Claude Code en tu Mac**, que compila, corrige y vuelve a intentar solo.
+ORBEX se escribe en la nube y **nunca se compiló en una Mac**: la lógica pura (`OrbexCore`) sí se compila
+y se prueba con Swift 6.1, pero la parte de macOS (AppKit/SwiftUI) solo se revisa por sintaxis. Es probable
+que la primera compilación tire algún error chico. Por eso lo más cómodo es que lo haga **Claude** en tu Mac:
+compila, corrige lo mínimo y vuelve a intentar solo.
+
+## Antes de empezar (una sola vez)
+
+- **macOS 15 o superior.**
+- **Xcode 16 o superior** desde el App Store, **o** solo las herramientas de línea de comandos:
+  `xcode-select --install`. Con Xcode 26 en macOS 26, ORBEX usa el Liquid Glass nativo.
+- **Claude Code** (https://claude.com/claude-code): corré `claude` una vez en la Terminal para loguearte.
+  El chat de ORBEX lo usa, y sirve para que Claude te instale la app.
+
+Para saber si ya tenés el compilador: `swift --version` en la Terminal (tiene que decir 6.0 o más).
 
 ---
 
-## Opción A (recomendada): que Claude la instale
+## Camino A · Primera vez
 
-1. Instalá lo necesario (una sola vez):
-   - **Xcode 26** desde el App Store (o como mínimo las herramientas: `xcode-select --install`). Con Xcode 26 ORBEX usa el Liquid Glass nativo.
-   - **Claude Code**: https://claude.com/claude-code, y logueate corriendo `claude` una vez en la Terminal. El asistente de ORBEX lo usa.
-2. Bajá el proyecto. Tenés dos formas:
-   - **Con git** (mejor, así Claude puede subir los arreglos):
-     ```bash
-     git clone -b claude/clever-heisenberg-xuhx4z https://github.com/zz88dz7mnm-crypto/orbes.git
-     cd orbes
-     ```
-   - **Con ZIP**: en GitHub, botón verde **Code → Download ZIP**, descomprimilo y entrá a la carpeta desde la Terminal.
-3. Abrí Claude Code en esa carpeta (`claude`) y pegale esto:
+1. En GitHub: botón verde **Code → Download ZIP**, y descomprimilo (o `git clone` del repo).
+2. En la Terminal, entrá a la carpeta y corré:
+   ```bash
+   bash scripts/install.sh
+   ```
+   Compila (`swift build -c release`), arma `dist/ORBEX.app` con su ícono y firma ad hoc, genera
+   `dist/ORBEX.dmg`, la copia a **Aplicaciones**, le saca la cuarentena y la abre.
 
-```
-Leé CLAUDE.md, INSTALAR.md y docs/PLAN.md. Esta app nunca se compiló en macOS.
-Tu tarea: dejar ORBEX compilando, instalado y abierto en esta Mac.
-1. Corré `bash scripts/install.sh`.
-2. Si falla la compilación, corregí los errores de a uno con el cambio MÍNIMO
-   (sin cambiar comportamiento, sin agregar dependencias, respetando CLAUDE.md)
-   y volvé a correr el script. Repetí hasta que compile e instale.
-3. Corré `swift test` y arreglá lo que falle.
-4. Cuando abra, confirmá que la isla aparece en el notch y que el menú de la barra
-   tiene "Probar estados".
-5. Si trabajás con git, hacé commit de los arreglos con mensajes claros y push.
-Al final decime qué arreglaste y qué quedó pendiente.
-```
+## Camino B · Ya tenías la versión anterior
+
+1. Bajá el **ZIP nuevo** y descomprimilo (queda en una carpeta nueva; la vieja podés dejarla por ahora).
+2. En la Terminal, entrá a la carpeta **nueva** y corré:
+   ```bash
+   bash scripts/actualizar.sh
+   ```
+   (con `--si` responde que sí a todas las preguntas, salvo borrar tus datos).
+
+**Qué borra `actualizar.sh`:**
+- la app vieja (`/Applications/ORBEX.app` y `~/Applications/ORBEX.app`) y los compilados (`.build`, `dist`);
+- el acceso directo viejo del Escritorio (la app nueva lo vuelve a crear si lo tenías activado);
+- los hooks viejos de Coucou/NotchBuddy en `~/.claude/settings.json`: **te muestra el diff, guarda un backup
+  con fecha y solo escribe si confirmás**;
+- si preguntás que sí: `Coucou.app`, la carpeta `~/.claude/coucou`, y la carpeta/ZIP viejo del proyecto
+  (en Descargas, Escritorio o Documentos).
+
+**Qué NO toca:** tus notas, memoria, timers, recordatorios, ajustes y las claves del Keychain. Siguen
+donde estaban y la versión nueva las usa tal cual.
+
+Después compila e instala con `install.sh`, igual que el camino A.
 
 ---
 
-## Opción B: a mano
+## Que lo haga Claude (recomendado)
 
-```bash
-cd orbes          # la carpeta del proyecto
-bash scripts/install.sh
+Sirve **Claude Code en la Mac** (abrilo con `claude` dentro de la carpeta nueva) o **Claude Desktop con
+acceso a la Terminal**. Pegale esto tal cual:
+
+```
+Quiero instalar/actualizar ORBEX en esta Mac. La carpeta NUEVA del proyecto es la que
+descomprimí último (si no estás en ella, buscala en Descargas y preguntame si hay dudas).
+Leé CLAUDE.md e INSTALAR.md antes de empezar. La parte de macOS nunca se compiló en una Mac.
+
+1. Chequeá que haya compilador: `swift --version` (6.0 o más). Si no hay, decime que instale
+   Xcode 16+ o corra `xcode-select --install`, y pará ahí.
+2. Andá a la carpeta nueva y corré `bash scripts/actualizar.sh` (si es la primera vez que
+   instalo ORBEX, `bash scripts/install.sh`). Cuando pregunte por borrar la carpeta o el ZIP
+   viejo, respondé que NO por ahora. A cualquier cambio en ~/.claude/settings.json mostrámelo
+   y esperá mi OK.
+3. Si el compilador marca errores, corregilos con el cambio MÍNIMO (sin cambiar diseño ni
+   comportamiento, sin agregar dependencias, respetando CLAUDE.md) y volvé a correr
+   `bash scripts/install.sh`. Repetí hasta que compile e instale.
+4. Verificá que ORBEX abre: que el proceso "Orbex" esté corriendo (`pgrep -x Orbex`), que
+   la isla aparezca en el notch y que el menú de la barra tenga "Probar estados".
+5. Recién cuando todo ande, preguntame si borro la carpeta y el ZIP de la versión vieja;
+   borralos solo si te digo que sí. No borres mis datos (notas, memoria, ajustes, Keychain).
+Al final decime qué corregiste (archivo y motivo) y qué quedó pendiente de probar.
 ```
 
-El script:
-1. compila la app (`swift build -c release`),
-2. arma `dist/ORBEX.app` con su ícono y la firma (ad hoc),
-3. genera `dist/ORBEX.dmg`,
-4. cierra ORBEX si estaba abierto, la copia a **Aplicaciones**, le saca la cuarentena y la abre.
-
-Si la compilación falla, los errores aparecen en la Terminal: copialos y pasáselos a Claude.
+Si algo falla y lo hacés a mano, copiá los errores de la Terminal y pasáselos a Claude.
 
 Otros comandos:
 
@@ -72,7 +102,8 @@ Otros comandos:
 | Permiso | Para qué |
 |---|---|
 | Carpeta Escritorio | Crear el acceso directo |
-| Automatización | Apple Notas, Spotify/Música, Terminal/iTerm2 (saltar a la sesión) |
+| Automatización | Terminal/iTerm2 (saltar a la sesión), Mail (mandar un mail desde la isla), Spotify/Música, Apple Notas |
+| Accesibilidad | Solo si arrastrás a ORBEX sobre una ventana: lee el título de esa ventana como contexto |
 | Notificaciones | Timers y recordatorios |
 | Grabación de pantalla y audio | Solo si activás "Bailar al ritmo" (Configuración › Música) |
 
@@ -101,5 +132,6 @@ Otros comandos:
 | No veo la isla en un monitor externo | Es normal: simula un notch arriba al centro. Elegí la pantalla en Configuración › Isla |
 | El asistente dice que no encuentra `claude` | Instalá Claude Code y corré `claude` una vez para loguearte |
 | Claude Code no muestra la isla al pedir permiso | Configuración › Claude Code → Instalar hooks. Si ORBEX está cerrado, Claude Code sigue normal: nunca se bloquea |
-| Un atajo no anda | Otra app lo está usando. Se puede cambiar en `Sources/Orbex/System/HotKeys.swift` |
+| Un atajo no anda | Otra app lo está usando (los atajos de ORBEX son fijos: ⌃⌥O/A/C/,). Se cambian en `Sources/Orbex/System/HotKeys.swift` |
 | Quiero sacarla | `bash scripts/uninstall.sh` (o `--all` para borrar todo) |
+| Quiero actualizar | Camino B: `bash scripts/actualizar.sh` desde la carpeta nueva |

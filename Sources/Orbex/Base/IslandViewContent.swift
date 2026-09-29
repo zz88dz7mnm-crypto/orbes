@@ -179,14 +179,14 @@ struct EmptyStateView: View {
             CardBackground(wash: nil)
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Nothing running right now.")
+                    Text("No hay nada corriendo ahora.")
                         .font(.system(size: 15, weight: .semibold))
-                    Text("Drop a file or window, or ask me anything.")
+                    Text("Soltá un archivo o una ventana, o preguntame lo que quieras.")
                         .font(.system(size: 13))
                         .foregroundColor(Color(hex: "#9398A1"))
                 }
                 Spacer()
-                PrimaryButton("Ask Claude") {
+                PrimaryButton("Preguntarle a Claude") {
                     state.view = .prompt
                 }
             }
@@ -490,7 +490,7 @@ struct FinishedView: View {
                             OrbexBridge.shared.close()
                         }
                     }
-                    SecondaryButton("OK") { OrbexBridge.shared.close() }
+                    SecondaryButton("Listo") { OrbexBridge.shared.close() }
                 }
             }
             .padding(.leading, 116)
@@ -508,8 +508,8 @@ struct ConfusedView: View {
         ZStack {
             CardBackground(wash: .pink)
             VStack(alignment: .leading, spacing: 5) {
-                Text("Too many hits at once.").font(.system(size: 15, weight: .semibold))
-                Text("Give me a sec — back to work in three seconds.")
+                Text("Demasiados toques de golpe.").font(.system(size: 15, weight: .semibold))
+                Text("Dame un segundo: vuelvo en tres.")
                     .font(.system(size: 13)).foregroundColor(Color(hex: "#9398A1"))
             }
             .padding(.leading, 128)
@@ -550,11 +550,11 @@ struct UploadView: View {
                     center: .bottom, startRadius: 0, endRadius: 200
                 ))
             VStack(alignment: .leading, spacing: 8) {
-                Text("Drop your files here")
+                Text("Soltá tus archivos acá")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(state.fileDragOver ? Color(hex: "#34D399") : Color(hex: "#D5D7DB"))
                 HStack(spacing: 6) {
-                    ForEach(["PDF", "Images", "Code", "Docs"], id: \.self) { label in
+                    ForEach(["PDF", "Imágenes", "Código", "Docs"], id: \.self) { label in
                         Text(label)
                             .font(.system(size: 11))
                             .padding(.horizontal, 8).padding(.vertical, 3)
@@ -661,12 +661,12 @@ struct UploadingView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 12))
                             .foregroundColor(Color(hex: "#34D399"))
-                        Text("  \(state.droppedFile?.name ?? "File")")
+                        Text("  \(state.droppedFile?.name ?? "Archivo")")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundColor(Color(hex: "#34D399"))
                             .lineLimit(1).truncationMode(.middle)
                     } else {
-                        Text("Uploading \(state.droppedFile?.name ?? "file")")
+                        Text("Subiendo \(state.droppedFile?.name ?? "archivo")")
                             .font(.system(size: 12.5))
                             .foregroundColor(Color(hex: "#A9ADB5"))
                             .lineLimit(1).truncationMode(.middle)
@@ -697,12 +697,12 @@ struct ChooseView: View {
         ZStack(alignment: .leading) {
             CardBackground(wash: nil)
             VStack(alignment: .leading, spacing: 8) {
-                let fileName = state.droppedFile?.name ?? "file"
-                (Text(fileName).font(.system(size: 14, weight: .semibold)) + Text(" is ready.").font(.system(size: 14, weight: .semibold)))
-                Text("What do you want to do with it?").font(.system(size: 12.5)).foregroundColor(Color(hex: "#9398A1"))
+                let fileName = state.droppedFile?.name ?? "archivo"
+                (Text(fileName).font(.system(size: 14, weight: .semibold)) + Text(" está listo.").font(.system(size: 14, weight: .semibold)))
+                Text("¿Qué querés hacer con el archivo?").font(.system(size: 12.5)).foregroundColor(Color(hex: "#9398A1"))
                 HStack(spacing: 8) {
-                    PrimaryButton("Ask a question") { state.view = .prompt }
-                    SecondaryButton("Send by email") { state.view = .mail }
+                    PrimaryButton("Preguntar sobre esto") { state.view = .prompt }
+                    SecondaryButton("Mandar por mail") { state.view = .mail }
                 }
             }
             .padding(.leading, 98)
@@ -726,16 +726,16 @@ struct MailView: View {
             CardBackground(wash: nil)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    Text("New email").font(.system(size: 12, weight: .semibold))
+                    Text("Mail nuevo").font(.system(size: 12, weight: .semibold))
                     if let name = state.droppedFile?.name {
-                        Text("with").font(.system(size: 12)).foregroundColor(Color(hex: "#8E939C"))
+                        Text("con").font(.system(size: 12)).foregroundColor(Color(hex: "#8E939C"))
                         Text(name).font(.system(size: 12)).foregroundColor(Color(hex: "#8E939C"))
                             .lineLimit(1).truncationMode(.middle)
                     }
                 }
 
-                MailField(label: "To", placeholder: "address@example.com", text: $to)
-                MailField(label: "Subject", placeholder: state.droppedFile?.name ?? "Subject", text: $subject)
+                MailField(label: "Para", placeholder: "direccion@ejemplo.com", text: $to)
+                MailField(label: "Asunto", placeholder: state.droppedFile?.name ?? "Asunto", text: $subject)
 
                 // Body — TextEditor scrolls internally when text overflows
                 TextEditor(text: $bodyText)
@@ -753,11 +753,11 @@ struct MailView: View {
                 }
 
                 HStack(spacing: 8) {
-                    PrimaryButton(isSending ? "Sending…" : "Send") {
+                    PrimaryButton(isSending ? "Enviando…" : "Enviar") {
                         guard !isSending else { return }
                         sendMail()
                     }
-                    SecondaryButton("Cancel") { state.view = .choose }
+                    SecondaryButton("Cancelar") { state.view = .choose }
                 }
             }
             .padding(.leading, 92)
@@ -768,8 +768,8 @@ struct MailView: View {
     }
 
     private func sendMail() {
-        guard !to.isEmpty else { statusMsg = "Missing recipient."; return }
-        let subj = subject.isEmpty ? (state.droppedFile?.name ?? "File") : subject
+        guard !to.isEmpty else { statusMsg = "Falta el destinatario."; return }
+        let subj = subject.isEmpty ? (state.droppedFile?.name ?? "Archivo") : subject
 
         // Prefer Resend if API key + sender address are configured
         let apiKey  = KeychainStore.shared.get("resend-api-key")
@@ -788,12 +788,12 @@ struct MailView: View {
                 await MainActor.run {
                     isSending = false
                     if ok { onSuccess(recipient: recipient) }
-                    else  { statusMsg = "Resend error — check API key & sender." }
+                    else  { statusMsg = "Error de Resend: revisá la clave de API y el remitente." }
                 }
             }
         } else if apiKey != nil && fromAddr == nil {
             // API key set but no sender — guide user instead of silent fallback
-            statusMsg = "Set sender address in Settings."
+            statusMsg = "Configurá la dirección del remitente en Ajustes."
         } else {
             // No Resend — fallback to Mail
             sendViaAppleMail(to: to, subject: subj)
@@ -836,7 +836,7 @@ struct MailView: View {
         #if APPSTORE
         // App Store: no AppleScript — use NSSharingService to compose (user sends manually)
         guard let service = NSSharingService(named: .composeEmail) else {
-            statusMsg = "Mail not available."
+            statusMsg = "Mail no está disponible."
             return
         }
         var items: [Any] = [bodyText.isEmpty ? " " : bodyText]
@@ -882,14 +882,14 @@ struct MailView: View {
         var err: NSDictionary?
         NSAppleScript(source: script)?.executeAndReturnError(&err)
         if err == nil { onSuccess(recipient: to) }
-        else { statusMsg = "Mail error: \(err?["NSAppleScriptErrorMessage"] as? String ?? "unknown")" }
+        else { statusMsg = "Error de Mail: \(err?["NSAppleScriptErrorMessage"] as? String ?? "desconocido")" }
         #endif
     }
 
     private func onSuccess(recipient: String) {
         SoundEngine.shared.play("send")
         NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.wink)
-        state.noteMessage = "Email sent to \(recipient)."
+        state.noteMessage = "Mail enviado a \(recipient)."
         state.view = .note
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             NotificationCenter.default.post(name: .islandCollapse, object: nil)
@@ -1514,7 +1514,7 @@ struct IntegrationCardView: View {
                     Text(task.id == "integration_claude" ? "Claude Code" : task.name)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Color(hex: "#F5F6F8"))
-                    Text("Integration")
+                    Text("Integración")
                         .font(.system(size: 11))
                         .foregroundColor(Color(hex: "#8E939C"))
                     Spacer(minLength: 2)
@@ -1530,7 +1530,7 @@ struct IntegrationCardView: View {
                     let dot = stripeErr != nil ? Color(hex: "#F4505E")
                             : isConfigured    ? Color(hex: "#22C55E")
                             :                   Color(hex: "#F4505E")
-                    let label = stripeErr ?? (isConfigured ? "Connected · loading…" : "Key not configured")
+                    let label = stripeErr ?? (isConfigured ? "Conectado · cargando…" : "Falta configurar la clave")
                     Circle().fill(dot).frame(width: 5, height: 5)
                     Text(label)
                         .font(.system(size: 11))
@@ -1541,7 +1541,7 @@ struct IntegrationCardView: View {
 
                 HStack(spacing: 8) {
                     if task.id == "integration_claude" {
-                        Button("Open Visual Studio Code") { openVSCode() }
+                        Button("Abrir Visual Studio Code") { openVSCode() }
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Color(hex: task.color).opacity(0.7))
                             .buttonStyle(.plain)
@@ -1554,7 +1554,7 @@ struct IntegrationCardView: View {
                         }) {
                             HStack(spacing: 5) {
                                 Circle().fill(accent).frame(width: 5, height: 5)
-                                Text(task.steps.first ?? "Workflow")
+                                Text(task.steps.first ?? "Flujo")
                                     .font(.system(size: 11))
                                     .foregroundColor(Color(hex: "#C5C8CD"))
                                     .lineLimit(1).truncationMode(.tail)
@@ -1569,27 +1569,27 @@ struct IntegrationCardView: View {
                         }
                         .buttonStyle(.plain)
                     } else if let url = openURL {
-                        Button("Open \(task.name)") { NSWorkspace.shared.open(url) }
+                        Button("Abrir \(task.name)") { NSWorkspace.shared.open(url) }
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Color(hex: task.color).opacity(0.85))
                             .buttonStyle(.plain)
                     }
                     if task.id == "integration_stripe" {
                         if isConfigured {
-                            Button("Refresh") { Task { @MainActor in StripePoller.shared.pollNow() } }
+                            Button("Actualizar") { Task { @MainActor in StripePoller.shared.pollNow() } }
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(Color(hex: "#0570DE").opacity(0.85))
                                 .buttonStyle(.plain)
                         }
                     }
                     if task.id == "integration_calcom" && isConfigured {
-                        Button("Refresh") { Task { @MainActor in CalcomPoller.shared.pollNow() } }
+                        Button("Actualizar") { Task { @MainActor in CalcomPoller.shared.pollNow() } }
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Color(hex: "#C9956A").opacity(0.85))
                             .buttonStyle(.plain)
                     }
                     if !isConfigured {
-                        Button("Settings…") {
+                        Button("Ajustes…") {
                             NotificationCenter.default.post(name: .openFullSettings, object: nil)
                         }
                         .font(.system(size: 11))
@@ -1650,7 +1650,7 @@ struct VercelDeploymentListView: View {
                 Text("Vercel")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Deployments")
+                Text("Despliegues")
                     .font(.system(size: 11))
                     .foregroundColor(Color(hex: "#8E939C"))
             }
@@ -1765,7 +1765,7 @@ struct VercelDetailView: View {
                             .font(.system(size: 10))
                             .foregroundColor(Color(hex: "#6B7079"))
                     }
-                    Text(deployment.timeAgo + " ago")
+                    Text(orbexTimeAgoPhrase(since: deployment.createdAt))
                         .font(.system(size: 10))
                         .foregroundColor(Color(hex: "#6B7079"))
                 }
@@ -1819,7 +1819,7 @@ struct ResendCardView: View {
                 Text("Resend")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Emails")
+                Text("Correos")
                     .font(.system(size: 11))
                     .foregroundColor(Color(hex: "#8E939C"))
                 if let total {
@@ -1902,7 +1902,7 @@ struct GitHubStatsCardView: View {
                 Text("GitHub")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Overview")
+                Text("Resumen")
                     .font(.system(size: 11))
                     .foregroundColor(Color(hex: "#8E939C"))
             }
@@ -1913,9 +1913,9 @@ struct GitHubStatsCardView: View {
             // Stats rows
             VStack(alignment: .leading, spacing: 5) {
                 StatRow(icon: "star.fill", color: "#F5A524",
-                        label: "Total stars", value: formatCount(stats.totalStars))
+                        label: "Estrellas en total", value: formatCount(stats.totalStars))
                 StatRow(icon: "square.stack.fill", color: "#6B7079",
-                        label: "Repositories", value: "\(stats.totalRepos)")
+                        label: "Repositorios", value: "\(stats.totalRepos)")
             }
             .padding(.top, 8)
             .padding(.leading, 108)
@@ -1971,7 +1971,7 @@ struct StripeCardView: View {
                 Text("Stripe")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Payments")
+                Text("Pagos")
                     .font(.system(size: 11))
                     .foregroundColor(Color(hex: "#8E939C"))
             }
@@ -2026,7 +2026,7 @@ private struct StripePaymentRow: View {
         let accent = payment.isSuccess ? Color(hex: "#22C55E") : Color(hex: "#F4505E")
         HStack(spacing: 5) {
             Circle().fill(accent).frame(width: 5, height: 5)
-            Text(payment.description ?? "Payment")
+            Text(payment.description ?? "Pago")
                 .font(.system(size: 11))
                 .foregroundColor(Color(hex: "#C5C8CD"))
                 .lineLimit(1).truncationMode(.tail)
@@ -2098,8 +2098,8 @@ struct CalcomCalendarView: View {
     private let cal = Calendar.current
 
     private var navLabel: String {
-        let f = DateFormatter(); f.dateFormat = "MMMM yyyy"
-        return "\(f.string(from: displayMonth)) Q\(displayHalf)"
+        let f = DateFormatter(); f.locale = Locale(identifier: "es_AR"); f.dateFormat = "MMMM yyyy"
+        return "\(f.string(from: displayMonth).capitalized(with: Locale(identifier: "es_AR"))) · \(displayHalf)ª quincena"
     }
 
     // 7 consecutive days per row, day 1 always at far left — no weekday alignment
@@ -2156,7 +2156,7 @@ struct CalcomCalendarView: View {
             HStack(spacing: 6) {
                 Circle().fill(Color(hex: "#C9956A")).frame(width: 7, height: 7)
                 Text("Cal.com").font(.system(size: 12, weight: .semibold)).foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Schedule").font(.system(size: 11)).foregroundColor(Color(hex: "#8E939C"))
+                Text("Agenda").font(.system(size: 11)).foregroundColor(Color(hex: "#8E939C"))
             }
             .padding(.top, 6).padding(.leading, 108).padding(.trailing, 36)
 
@@ -2195,7 +2195,7 @@ private struct CalcomWeekRow: View {
 
     private var weekLabel: String {
         guard let first = week.compactMap({ $0 }).first else { return "" }
-        let f = DateFormatter(); f.dateFormat = "dd/MM"
+        let f = DateFormatter(); f.locale = Locale(identifier: "es_AR"); f.dateFormat = "dd/MM"
         return f.string(from: first)
     }
 
@@ -2252,7 +2252,7 @@ struct CalcomDayView: View {
             .padding(.top, 6).padding(.trailing, 12)
 
             if bookings.isEmpty {
-                Text("No calls scheduled").font(.system(size: 11)).foregroundColor(Color(hex: "#6B7079"))
+                Text("No hay llamadas agendadas").font(.system(size: 11)).foregroundColor(Color(hex: "#6B7079"))
                     .padding(.leading, 116).padding(.top, 8)
             } else {
                 VStack(alignment: .leading, spacing: 3) {
@@ -2282,7 +2282,7 @@ struct CalcomDayView: View {
         .transition(.opacity)
     }
     private var dayLabel: String {
-        let f = DateFormatter(); f.dateFormat = "EEEE d MMMM"; return f.string(from: date)
+        let f = DateFormatter(); f.locale = Locale(identifier: "es_AR"); f.dateFormat = "EEEE d 'de' MMMM"; return f.string(from: date).capitalized(with: Locale(identifier: "es_AR"))
     }
 }
 
@@ -2349,7 +2349,7 @@ struct NotionCardView: View {
             HStack(spacing: 6) {
                 Circle().fill(Color(hex: "#E8E8E8")).frame(width: 7, height: 7)
                 Text("Notion").font(.system(size: 12, weight: .semibold)).foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Recent").font(.system(size: 11)).foregroundColor(Color(hex: "#8E939C"))
+                Text("Recientes").font(.system(size: 11)).foregroundColor(Color(hex: "#8E939C"))
             }
             .padding(.top, 6).padding(.leading, 108).padding(.trailing, 36)
 
@@ -2393,7 +2393,7 @@ struct N8nDetailView: View {
 
     private var success: Bool  { task.state == .finished }
     private var accent: Color  { success ? Color(hex: "#22C55E") : Color(hex: "#F4505E") }
-    private var statusLabel: String { success ? "Success" : "Failed" }
+    private var statusLabel: String { success ? "Salió bien" : "Falló" }
     private var detail: String? { task.steps.dropFirst().first }
 
     var body: some View {
@@ -2412,7 +2412,7 @@ struct N8nDetailView: View {
 
                 Circle().fill(accent).frame(width: 6, height: 6)
 
-                Text(task.steps.first ?? "Workflow")
+                Text(task.steps.first ?? "Flujo")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color(hex: "#F5F6F8"))
                     .lineLimit(1).truncationMode(.middle)
@@ -2440,7 +2440,7 @@ struct N8nDetailView: View {
                 }
                 .frame(maxHeight: 88)
             } else {
-                Text(success ? "Completed successfully." : "No error details available.")
+                Text(success ? "Terminó sin errores." : "No hay detalles del error.")
                     .font(.system(size: 11))
                     .foregroundColor(Color(hex: "#6B7079"))
             }
@@ -3060,7 +3060,7 @@ struct SettingsIslandView: View {
                         .labelsHidden()
                         .scaleEffect(0.75)
                         .frame(width: 44)
-                    Text("Sound")
+                    Text("Sonido")
                         .font(.system(size: 12.5))
                         .foregroundColor(Color(hex: "#C5C8CD"))
                     Slider(value: $state.soundVolume, in: 0...0.2)
@@ -3074,13 +3074,13 @@ struct SettingsIslandView: View {
                         .font(.system(size: 12))
                         .foregroundColor(Color(hex: "#8E939C"))
                         .frame(width: 16)
-                    Text("Auto-close · \(Int(state.autoCloseInterval))s")
+                    Text("Cierre automático · \(Int(state.autoCloseInterval)) s")
                         .font(.system(size: 12))
                         .foregroundColor(Color(hex: "#C5C8CD"))
                     Spacer()
                     HStack(spacing: 6) {
                         ForEach([10, 15, 30], id: \.self) { s in
-                            Button("\(s)s") {
+                            Button("\(s) s") {
                                 state.autoCloseInterval = Double(s)
                             }
                             .font(.system(size: 11))
@@ -3098,7 +3098,7 @@ struct SettingsIslandView: View {
                     StatusBadge(label: "Claude Code", ok: claudeConnected)
                     StatusBadge(label: "claude", ok: apiConnected)
                     Spacer()
-                    Button("Settings…") {
+                    Button("Ajustes…") {
                         NotificationCenter.default.post(name: .openFullSettings, object: nil)
                     }
                     .font(.system(size: 11.5))

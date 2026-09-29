@@ -51,7 +51,9 @@
 
 	<!-- Textos que macOS muestra al pedir cada permiso (solo en el primer uso). -->
 	<key>NSAppleEventsUsageDescription</key>
-	<string>ORBEX usa la automatización para controlar Spotify, crear y leer notas en Apple Notas, abrir tus sesiones en Terminal o iTerm2 y mostrar archivos en el Finder. Solo lo hace cuando vos se lo pedís.</string>
+	<string>ORBEX usa la automatización para saltar a tu sesión de Claude Code en Terminal o iTerm2, mandar los mails que escribís en la isla con Mail, controlar Spotify o Música, usar Apple Notas y mostrar archivos en el Finder. Solo lo hace cuando vos se lo pedís con un clic.</string>
+	<key>NSAccessibilityUsageDescription</key>
+	<string>ORBEX lee solo el título de la ventana sobre la que lo soltás al arrastrarlo, para usarlo como contexto del chat. No lee el contenido de tus ventanas ni tus teclas.</string>
 	<key>NSDesktopFolderUsageDescription</key>
 	<string>ORBEX necesita acceso al Escritorio para crear (o borrar) el acceso directo a la app.</string>
 	<key>NSMicrophoneUsageDescription</key>

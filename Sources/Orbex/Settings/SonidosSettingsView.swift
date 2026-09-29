@@ -4,6 +4,7 @@ import OrbexCore
 /// Configuración › Sonidos: volumen, horario silencioso, ducking y cada evento con vista previa.
 struct SonidosSettingsView: View {
     @ObservedObject var model = AppModel.shared
+    @ObservedObject private var island = AppState.shared
 
     var body: some View {
         Form {
@@ -17,6 +18,17 @@ struct SonidosSettingsView: View {
                 SettingsFootnote(text: "Todos los sonidos se sintetizan en la misma escala, así nunca desafinan entre sí. De noche suenan un poco más bajo.")
             } header: {
                 Text("General")
+            }
+
+            Section {
+                Toggle("Sonidos de la isla", isOn: $island.soundEnabled)
+                    .disabled(!model.settings.soundEnabled)
+                SettingsSliderRow(title: "Volumen de la isla", value: $island.soundVolume,
+                                  range: 0...0.2, step: 0.01, format: { SettingsFormat.percent($0 / 0.2) })
+                    .disabled(!model.settings.soundEnabled || !island.soundEnabled)
+                SettingsFootnote(text: "Asomarse, abrir, tragar un archivo, caricias… Se suma al volumen general de arriba.")
+            } header: {
+                Text("Isla")
             }
 
             Section {

@@ -6,6 +6,7 @@ import OrbexCore
 /// Configuración › Isla: pantalla, ajuste fino del notch, alitas y comportamiento.
 struct IslaSettingsView: View {
     @ObservedObject var model = AppModel.shared
+    @ObservedObject private var island = AppState.shared
     @State private var screens: [ScreenItem] = []
 
     private struct ScreenItem: Hashable {
@@ -65,8 +66,9 @@ struct IslaSettingsView: View {
                 SettingsSliderRow(title: "Alitas", value: $model.settings.wingScale,
                                   range: 0.5...1.5, step: 0.05, format: SettingsFormat.percent)
                 Toggle("Asomarse al pasar el mouse", isOn: $model.settings.hoverPeeks)
-                SettingsSliderRow(title: "Cerrarse sola a los", value: $model.settings.openAutoCloseSeconds,
+                SettingsSliderRow(title: "Cerrarse sola a los", value: $island.autoCloseInterval,
                                   range: 5...60, step: 5, format: SettingsFormat.seconds)
+                SettingsFootnote(text: "Segundos sin usar la isla abierta antes de que vuelva sola al notch.")
                 Toggle("Latido en reposo", isOn: $model.settings.hiddenPulse)
                 SettingsFootnote(text: "Con el latido, la isla oculta brilla muy suave cada tanto para que se note que ORBEX está.")
             } header: {
