@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OrbexHotKeys.installDefaults()
         SettingsWindowController.shared.startObserving()
         startPhase2Modules()
+        PersonalityDirector.shared.start()   // saludo por nombre, "te extrañé", rachas, frases, te ve tipear
         SessionsStore.shared.start()   // hooks de Claude Code / Codex (socket Unix + orbex-hook)
         SessionsBridge.shared.start()  // permisos pendientes → vista de permiso de la isla
         SchedulerStore.shared.start()  // recordatorios y acciones a hora puntual

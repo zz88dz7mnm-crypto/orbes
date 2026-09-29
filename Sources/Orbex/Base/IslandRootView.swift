@@ -457,6 +457,7 @@ struct IslandContentView: View {
 
 struct IslandHeader: View {
     @ObservedObject var state: AppState
+    @ObservedObject private var personality = PersonalityDirector.shared
 
     var body: some View {
         HStack(spacing: 0) {
@@ -474,7 +475,19 @@ struct IslandHeader: View {
             }
             .padding(.leading, 14)
 
-            Spacer()
+            // Centro: frase de ORBEX (saludo, racha, "¡Te extrañé!", frases rotativas).
+            Spacer(minLength: 8)
+            if !personality.headerLine.isEmpty {
+                Text(personality.headerLine)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(Color(hex: "#8E939C"))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .id(personality.headerLine)
+                    .transition(.opacity)
+                    .accessibilityLabel(personality.headerLine)
+            }
+            Spacer(minLength: 8)
 
             // Right: action icons
             HStack(spacing: 14) {
@@ -499,6 +512,7 @@ struct IslandHeader: View {
             .padding(.trailing, 16)
         }
         .frame(maxHeight: .infinity)
+        .animation(.easeInOut(duration: 0.35), value: personality.headerLine)
     }
 }
 
