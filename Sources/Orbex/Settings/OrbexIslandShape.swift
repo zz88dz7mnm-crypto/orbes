@@ -3,7 +3,7 @@ import SwiftUI
 /// Silueta de la isla: bloque que baja del borde superior con esquinas inferiores redondeadas
 /// y "hombreras" cóncavas arriba para fundirse con la barra de menú (como el notch real).
 /// El rectángulo incluye las hombreras: el cuerpo ocupa `rect.width − 2 × shoulder`.
-struct IslandShape: Shape {
+struct OrbexIslandShape: Shape {
     var bottomRadius: CGFloat
     var shoulder: CGFloat
 

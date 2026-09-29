@@ -246,12 +246,12 @@ struct IslandMiniPreview: View {
                                         Color(red: 0.30, green: 0.20, blue: 0.40)],
                                startPoint: .topLeading, endPoint: .bottomTrailing)
                 menuBar(height: barH)
-                IslandShape(bottomRadius: CGFloat(size.bottomRadius) * k, shoulder: shoulder)
+                OrbexIslandShape(bottomRadius: CGFloat(size.bottomRadius) * k, shoulder: shoulder)
                     .fill(Color.black)
                     .overlay {
                         islandContent(size: size, k: k, width: shapeW, height: shapeH)
                     }
-                    .clipShape(IslandShape(bottomRadius: CGFloat(size.bottomRadius) * k, shoulder: shoulder))
+                    .clipShape(OrbexIslandShape(bottomRadius: CGFloat(size.bottomRadius) * k, shoulder: shoulder))
                     .frame(width: shapeW, height: shapeH)
                     .mask(alignment: .top) {
                         // El estado "abierto" es más alto que la vista previa: se desvanece abajo.

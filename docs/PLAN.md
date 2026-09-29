@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 3 %</h1>
+<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 7 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ETAPA_2-3%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 3 %" height="60">
+  <img src="https://img.shields.io/badge/ETAPA_2-7%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 7 %" height="60">
 </p>
 
-<h3 align="center">▓░░░░░░░░░░░░░░░░░░░ 3 / 100</h3>
+<h3 align="center">▓░░░░░░░░░░░░░░░░░░░ 7 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: E1 · Clonar Coucou y unificar el cascarón</h3>
+<h3 align="center">🛠️ Ahora mismo: E1 · Clonar Coucou y unificar el cascarón (código copiado, resolviendo choques)</h3>
 
-<p align="center"><i>Última actualización: 29/09/2026 00:33 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 29/09/2026 00:42 UTC — se actualiza en cada push</i></p>
 
 <p align="center">Etapa 1 (ORBEX propio, fases 0–6): <b>100 % ✅</b> — versión previa en el commit <code>ab818d5</code></p>
 
@@ -28,7 +28,7 @@ Pesos: E0 3 % · E1 17 % · E2 20 % · E3 15 % · E4 5 % · E5 15 % · E6 10 % �
 - [x] Avisos de licencia (THIRD_PARTY_NOTICES, LICENSE), CLAUDE.md regla 13, decisiones, contratos, plan
 
 ## E1 · Clonar Coucou y unificar el cascarón (17 %)
-- [ ] Código de Coucou en `Sources/Orbex/Base/` con cabecera MIT; sin assets
+- [x] Código de Coucou en `Sources/Orbex/Base/` con cabecera MIT; sin assets
 - [ ] Retirar duplicados de ORBEX y de Coucou; resolver 13 choques de nombres
 - [ ] Marca ORBEX (bundle, carpetas, logs, textos); `Package.swift` macOS 15
 - [ ] `AppDelegate` único + `OrbexBridge` + `SoundEngine.play(nombre)`

@@ -2,6 +2,9 @@ import QuartzCore
 import SwiftUI
 import OrbexCore
 
+/// Naranja de Claude (#D97757): ORBEX se tiñe de este color mientras Claude responde.
+let claudeOrange = Color(red: 0.851, green: 0.467, blue: 0.341)
+
 /// Clawd, la mascota pixelada de Claude Code, acompañando a ORBEX en el asistente.
 /// Pinta los píxeles que devuelve `ClawdSprite.frame` (Core); acá solo hay dibujo.
 struct ClaudePetView: View {
