@@ -119,7 +119,7 @@ Otros comandos:
 | Timers, notas, acciones y apps permitidas | Configuración › Timers / Notas / Acciones y apps |
 | Recordatorios y memoria | Decile al asistente "a las 21 recordame…" o "acordate que…" |
 | Spotify y baile | Configuración › Música |
-| GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com | Configuración › Integraciones (clave en el Keychain, solo lectura) |
+| GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com | Configuración › Integraciones (clave en el Keychain; hasta 4 pastillas en la isla) |
 | Temas: Liquid Glass / macOS limpio / Y2K | Configuración › Tema |
 
 ---

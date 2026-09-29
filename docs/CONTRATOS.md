@@ -35,8 +35,46 @@
 
 ## Puentes y APIs clave
 - `OrbexBus` (`App/OrbexBus.swift`): `play`, `react`, `setActivity`, `show`, `perform`, `requestTint`, `toast`.
-  `App/OrbexBridge.swift` los conecta con `AppState`/`IslandWindowController` de Coucou.
-- `AppState.shared` (Coucou): `mode`, `view`, `tasks`, `focusId`, `pendingApproval`, `noteMessage`…
+- `OrbexBridge.shared` (`App/OrbexBridge.swift`, `@MainActor`): traduce el bus a la isla de la base y
+  refleja `AppState.mode/view` en `AppModel.islandState`.
+  - `attach(_ IslandWindowController)`, `updatePlacement()`.
+  - `openIsland(_ view: IslandView? = nil)`, `close()`, `reveal()`, `show(page: IslandPage)`,
+    `toggleAssistant()`, `toggleClock()`.
+  - `showNote(_ text:, symbol:)`: aviso corto en la vista `note`; nunca tapa permiso/pregunta/mail/chat.
+  - `setAmbient(working:attention:sleepy:)` → `AppState.ambientState`; `react(_ OrbexReaction)` → emotes.
+  - `AppState.autoCloseInterval` → `fsm.homeToPetitDelay` (mín. 5 s): "cerrarse sola" de Configuración › Isla.
+- `SessionsBridge.shared` (`Sessions/SessionsBridge.swift`, `@MainActor`): sesiones de Claude Code → pastillas.
+  - `start()` (lo llama el `AppDelegate`); una pastilla por sesión con id `"claude:" + sessionID`
+    (`taskID(_:)`, `sessionID(fromTask:)`).
+  - Permisos: `decide(_ ApprovalDecision)` (el primero de la cola; "Siempre" llega ya doblemente
+    confirmado), `sendApprovalDecision("allow"|"deny"|"always")` (compatibilidad), `answerInTerminal()`.
+  - `jumpToTerminal(sessionID: String? = nil)`, `openSessionsPage()`.
+  - Consultas: `session(forTask:)`, `endedSession(for:)`, `task(forSession:)`; estáticos `pillName`,
+    `botState`, `badge(for:)`, `color(for:)`, `durationText`, `lastPrompt`, `lastWork`.
+- `PersonalityDirector.shared` (`Base/PersonalityDirector.swift`, `@MainActor`): `start()`/`stop()`;
+  `@Published headerLine` (encabezado de la isla). Aplica lo que decide `PersonalityBrain` (OrbexCore)
+  posteando `.triggerEmote`, `.botBlink`, `.botSetTgEs` y `.personalityGlance`. Sin permisos; timer de un
+  disparo cada 2 s (5 s oculta, 8 s en bajo consumo).
+- Notificaciones del personaje:
+  - `.personalityGlance` — `userInfo`: `"dx"`/`"dy"` (`CGFloat`, −1…1, y hacia abajo), `"duration"`
+    (`Double`, `0` = sostener hasta el próximo; `dx = dy = 0` suelta la mirada).
+  - `.botPet` — `object`: `Bool` (empieza/termina la caricia; la postea `IslandWindowController` al
+    dejar el mouse quieto sobre ORBEX, la escucha `BotCanvasView`).
+  - `.triggerSlap` → cosquillas (`BotEngine.tickle()`; `slap()` queda como alias). `.triggerEmote` (`BotEmote`).
+  - `.openFullSettings` — abre la ventana de Configuración (la vista `settings` de la isla la postea).
+- `AppState.shared` (base): `mode`, `view`, `tasks`, `focusId`, `pendingApproval`, `noteMessage`,
+  `noteSymbol`, `ambientState`, `soundEnabled`/`soundVolume` (sonido de la isla, en Configuración › Sonidos),
+  `autoCloseInterval`, `activeIntegrations` (máx. 4) + `toggleIntegration(_:)`.
 - Motor del personaje (`BotEngine`): API pública de Coucou intacta (`setState`, `triggerEmote`, `slap`,
-  `blink`, `gulp`, `greet`, `anim`, `lookX/lookY`, `tgEs`, `morph`, `slotH*`, `bodyColor`, `isMini`, `draw…`).
-- `SoundEngine.shared.play(_ name: String)` (nombres de Coucou) y `play(_ s: OrbexSound)` (ORBEX).
+  `blink`, `gulp`, `greet`, `anim`, `lookX/lookY`, `tgEs`, `morph`, `slotH*`, `bodyColor`, `isMini`, `draw…`),
+  más `tickle()`.
+- `SoundEngine.shared`:
+  - `play(_ name: String)` — eventos de la isla por nombre ("peek", "open", "slap", "gulp", "love"…): cada
+    uno de los 28 tiene su sonido sintetizado (`IslandSound`); nombres desconocidos no suenan. Respeta
+    `AppState.soundEnabled`, el volumen relativo `soundVolume / 0,12` y los silencios por grupo
+    (`SoundEngine.eventSounds` → `OrbexSound`).
+  - `play(_ s: OrbexSound)` — sonidos de ORBEX por tema; `preview(_:theme:)` para Configuración.
+- Configuración: `SettingsRootView` (secciones), `IntegrationsSettingsView` (`Base/SettingsView.swift`):
+  claves solo en `KeychainStore` (`resend-api-key`, `resend-from`, `n8n-url`, `n8n-api-key`, `vercel-token`,
+  `github-token`, `stripe-api-key`, `calcom-api-key`, `notion-api-key`), filtros `vercelProjectFilter` /
+  `n8nWorkflowFilter`. Atajos fijos en `System/HotKeys.swift` (⌃⌥O/A/C/,).
