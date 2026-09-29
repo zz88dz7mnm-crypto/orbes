@@ -66,6 +66,11 @@ enum ClaudeHooksFile {
         HooksInstaller.isInstalled(in: (try? JSONSettingsFile.read(url)) ?? nil)
     }
 
+    /// ¿Quedan hooks viejos de Coucou / NotchBuddy? Se quitan al instalar (con el mismo diff y backup).
+    static var hasLegacyHooks: Bool {
+        HooksInstaller.hasLegacyHooks(in: (try? JSONSettingsFile.read(url)) ?? nil)
+    }
+
     /// Lo que hay hoy, cómo quedaría y el diff para mostrar antes de escribir.
     static func preview() -> (old: String, new: String, diff: String) {
         let current = (try? JSONSettingsFile.read(url)) ?? nil

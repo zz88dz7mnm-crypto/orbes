@@ -10,6 +10,7 @@ struct ClaudeCodeSettingsView: View {
 
     @State private var claudeInstalled = ClaudeHooksFile.isInstalled
     @State private var codexInstalled = CodexHooksFile.isInstalled
+    @State private var legacyHooks = ClaudeHooksFile.hasLegacyHooks
     @State private var pending: HooksTarget?
     @State private var errorText: String?
     @State private var rulesCount = 0
@@ -20,6 +21,10 @@ struct ClaudeCodeSettingsView: View {
                 hooksRow(.claude, installed: claudeInstalled)
                 SettingsFootnote(text: "Los hooks van en \(ClaudeHooksFile.url.path). Antes de escribir se hace una copia con fecha y se muestra el cambio.",
                                  symbol: "doc.badge.gearshape")
+                if legacyHooks {
+                    SettingsFootnote(text: "Encontré hooks viejos de Coucou/NotchBuddy (nb-hook). Al instalar los de ORBEX se quitan; vas a ver el cambio antes de confirmar.",
+                                     symbol: "exclamationmark.triangle")
+                }
             }
 
             Section("Codex") {
@@ -83,7 +88,7 @@ struct ClaudeCodeSettingsView: View {
     private func hooksRow(_ target: HooksTarget, installed: Bool) -> some View {
         LabeledContent {
             HStack(spacing: 8) {
-                Button(installed ? "Reinstalar…" : "Instalar hooks…") {
+                Button(installed && !(target == .claude && legacyHooks) ? "Reinstalar…" : "Instalar hooks…") {
                     errorText = nil
                     pending = target
                 }
@@ -110,6 +115,7 @@ struct ClaudeCodeSettingsView: View {
     private func refresh() {
         claudeInstalled = ClaudeHooksFile.isInstalled
         codexInstalled = CodexHooksFile.isInstalled
+        legacyHooks = ClaudeHooksFile.hasLegacyHooks
         rulesCount = SessionsStore.shared.alwaysAllowRules.count
     }
 
@@ -196,7 +202,9 @@ struct HooksDiffSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Instalar hooks de \(target.title)")
                     .font(.headline)
-                Text("Así va a quedar \(target.path). Se guarda una copia con fecha antes de escribir; nada de lo tuyo se borra.")
+                Text(target == .claude && ClaudeHooksFile.hasLegacyHooks
+                     ? "Así va a quedar \(target.path). Se quitan los hooks viejos de Coucou/NotchBuddy (en rojo); lo demás tuyo queda igual. Se guarda una copia con fecha antes de escribir."
+                     : "Así va a quedar \(target.path). Se guarda una copia con fecha antes de escribir; nada de lo tuyo se borra.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

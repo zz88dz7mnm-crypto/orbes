@@ -41,8 +41,9 @@ struct Tween {
 // MARK: - Partículas
 
 struct Particle {
-    /// Corazón, estrellita dorada, chispita de vidrio, gotita de sudor, "z" de dormir, burbujita.
-    enum ParticleType { case heart, star, spark, sweat, z, bubble }
+    /// Corazón, estrellita dorada, chispita de vidrio, gotita de sudor, "z" de dormir, burbujita,
+    /// confeti de vidrio (cae con gravedad) y signo de pregunta flotante.
+    enum ParticleType { case heart, star, spark, sweat, z, bubble, confetti, question }
     var type: ParticleType
     var x, y, vx, vy: CGFloat   // en unidades de 1,3 R desde el centro del cuerpo
     var age: Double             // segundos
@@ -303,6 +304,24 @@ final class BotEngine: ObservableObject {
     private var lastLookInput: Double = 0
     private var prevLook: CGPoint = .zero
 
+    // MARK: Relación con el usuario (caricia, cosquillas, timidez, globo) y extras por estado
+
+    /// Lo pone el lienzo: este motor es el fantasma que se arrastra (globo que patalea).
+    var carried: Bool = false
+    /// Caricia en curso (mouse quieto encima de ORBEX, vista abierta). Ver `setPetting(_:)`.
+    private(set) var petting: Bool = false
+    private var petK: CGFloat = 0            // 0…1 intensidad de la caricia, suave
+    private var purrX: CGFloat = 0           // vibración del ronroneo (fracción de R)
+    private var nextPetHeart: Double = 0
+    private var nearSince: Double = 0        // desde cuándo el cursor está cerca (timidez)
+    private var shyCooldown: Double = 0
+    private var fog: CGFloat = 0             // vidrio empañado (error), suave
+    private var deflate: CGFloat = 0         // desinflado (límite de uso), suave
+    /// Idle raro en curso que se dibuja cuadro a cuadro (burbuja con la que juega).
+    private var bubblePlayStart: Double = 0
+    private static let bubblePlayDur: Double = 2.6
+    private var lifeTuned = false
+
     // MARK: Ambiente (tema, tinte, reducir movimiento): se relee dos veces por segundo
 
     private(set) var reduceMotion: Bool = false
@@ -329,9 +348,18 @@ final class BotEngine: ObservableObject {
         }
 
         let m: CGFloat = reduceMotion ? 0.3 : 1
+        // Se despierta: sobresalto y estirada (antes de la reacción del estado nuevo).
+        let wakes = prev == .sleeping && newState != .sleeping && !force && !isMini
+        if wakes { wakeUp() }
         switch newState {
         case .finished:
+            // Voltereta con saltito y confeti de vidrio.
             if !reduceMotion { doRoll(duration: 950, turns: 1) }
+            anim("oy", keys: [
+                TweenKey(target: -0.28 * m, duration: 220, ease: Ease.out),
+                TweenKey(target: -0.28 * m, duration: 420, ease: Ease.lin),
+                TweenKey(target: 0,         duration: 380, ease: Ease.back),
+            ])
             anim("armsUp", keys: [
                 TweenKey(target: 1, duration: 220, ease: Ease.out),
                 TweenKey(target: 1, duration: 700, ease: Ease.lin),
@@ -339,7 +367,7 @@ final class BotEngine: ObservableObject {
             ])
             after(0.5) { e in
                 e.emit(.spark, count: 5)
-                e.emit(.bubble, count: 3)
+                e.emit(.confetti, count: e.reduceMotion ? 6 : 14)
             }
         case .error:
             anim("ox", keys: [
@@ -360,7 +388,7 @@ final class BotEngine: ObservableObject {
         case .ratelimit:
             emit(.sweat, count: 1)
         default:
-            if prev != .idle || newState != .idle { blink() }
+            if !wakes && (prev != .idle || newState != .idle) { blink() }
         }
     }
 

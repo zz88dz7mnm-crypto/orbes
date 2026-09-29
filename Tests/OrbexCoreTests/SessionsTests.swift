@@ -209,6 +209,30 @@ final class HooksInstallerTests: XCTestCase {
         XCTAssertEqual(d, "  a\n- b\n  c\n+ d")
     }
 
+    func testInstallRemovesLegacyCoucouHooks() {
+        let legacy = "\"/Users/ana/.claude/coucou/nb-hook\""
+        let settings: [String: Any] = [
+            "hooks": [
+                "PermissionRequest": [["hooks": [["type": "command", "command": legacy, "timeout": 120]]]],
+                "Stop": [["hooks": [["type": "command", "command": legacy],
+                                    ["type": "command", "command": "say listo"]]]],
+            ],
+        ]
+        XCTAssertTrue(HooksInstaller.hasLegacyHooks(in: settings))
+        let installed = HooksInstaller.install(into: settings, command: command)
+        XCTAssertFalse(HooksInstaller.hasLegacyHooks(in: installed))
+        XCTAssertTrue(HooksInstaller.isInstalled(in: installed))
+        let text = HooksInstaller.prettyJSON(installed)
+        XCTAssertFalse(text.contains("nb-hook"))
+        XCTAssertTrue(text.contains("say listo"))
+        let permission = (installed["hooks"] as? [String: Any])?["PermissionRequest"] as? [Any]
+        XCTAssertEqual(permission?.count, 1)
+
+        let cleaned = HooksInstaller.removeLegacy(from: settings)
+        XCTAssertFalse(HooksInstaller.hasLegacyHooks(in: cleaned))
+        XCTAssertNil((cleaned["hooks"] as? [String: Any])?["PermissionRequest"])
+    }
+
     func testCodexInstaller() {
         let installed = CodexHooksInstaller.install(into: nil, command: command + " --codex")
         XCTAssertTrue(CodexHooksInstaller.isInstalled(in: installed))

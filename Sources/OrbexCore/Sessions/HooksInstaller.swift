@@ -6,6 +6,11 @@ public enum HooksInstaller {
     /// Cualquier comando que contenga esto se considera de ORBEX.
     public static let marker = "orbex-hook"
 
+    /// Hooks viejos de Coucou / NotchBuddy (la base de ORBEX). Se quitan al instalar los de ORBEX
+    /// para que no haya dos apps respondiendo el mismo permiso. Solo se quita el comando que coincide;
+    /// el resto del grupo (hooks de otros) queda intacto.
+    public static let legacyMarkers = ["nb-hook", "NotchBuddy", ".claude/coucou", "Coucou.app"]
+
     /// Eventos de Claude Code que escucha ORBEX y su timeout (segundos).
     public static let events: [(name: String, timeout: Int)] = [
         ("SessionStart", 10), ("SessionEnd", 10), ("UserPromptSubmit", 10),
@@ -17,7 +22,7 @@ public enum HooksInstaller {
     /// Devuelve la configuración con los hooks de ORBEX agregados (reemplaza los viejos de ORBEX).
     public static func install(into settings: [String: Any]?, command: String) -> [String: Any] {
         var result = settings ?? [:]
-        var hooks = uninstallHooks(result["hooks"] as? [String: Any] ?? [:])
+        var hooks = uninstallHooks(removeLegacy(result["hooks"] as? [String: Any] ?? [:]))
         for event in events {
             var matchers = hooks[event.name] as? [[String: Any]] ?? []
             matchers.append(["hooks": [["type": "command", "command": command, "timeout": event.timeout]]])
@@ -41,6 +46,25 @@ public enum HooksInstaller {
         return hooks.values.contains { value in
             (value as? [[String: Any]])?.contains(where: isOrbexMatcher) ?? false
         }
+    }
+
+    /// ¿Quedan hooks viejos de Coucou / NotchBuddy?
+    public static func hasLegacyHooks(in settings: [String: Any]?) -> Bool {
+        guard let hooks = settings?["hooks"] as? [String: Any] else { return false }
+        return hooks.values.contains { value in
+            (value as? [[String: Any]])?.contains { matcher in
+                (matcher["hooks"] as? [[String: Any]])?.contains(where: isLegacyHook) ?? false
+            } ?? false
+        }
+    }
+
+    /// Devuelve la configuración sin los hooks viejos de Coucou / NotchBuddy.
+    public static func removeLegacy(from settings: [String: Any]) -> [String: Any] {
+        var result = settings
+        guard let hooks = result["hooks"] as? [String: Any] else { return result }
+        let cleaned = removeLegacy(hooks)
+        if cleaned.isEmpty { result.removeValue(forKey: "hooks") } else { result["hooks"] = cleaned }
+        return result
     }
 
     /// JSON lindo y estable (claves ordenadas) para mostrar y escribir.
@@ -86,6 +110,30 @@ public enum HooksInstaller {
     static func isOrbexMatcher(_ matcher: [String: Any]) -> Bool {
         guard let list = matcher["hooks"] as? [[String: Any]] else { return false }
         return list.contains { ($0["command"] as? String)?.contains(marker) == true }
+    }
+
+    static func isLegacyHook(_ hook: [String: Any]) -> Bool {
+        guard let command = hook["command"] as? String, !command.contains(marker) else { return false }
+        return legacyMarkers.contains { command.contains($0) }
+    }
+
+    /// Quita cada comando viejo; el grupo se borra solo si queda vacío.
+    static func removeLegacy(_ hooks: [String: Any]) -> [String: Any] {
+        var result: [String: Any] = [:]
+        for (event, value) in hooks {
+            guard let matchers = value as? [[String: Any]] else { result[event] = value; continue }
+            var kept: [[String: Any]] = []
+            for var matcher in matchers {
+                guard let list = matcher["hooks"] as? [[String: Any]] else { kept.append(matcher); continue }
+                let filtered = list.filter { !isLegacyHook($0) }
+                if filtered.count == list.count { kept.append(matcher); continue }
+                if filtered.isEmpty { continue }
+                matcher["hooks"] = filtered
+                kept.append(matcher)
+            }
+            if !kept.isEmpty { result[event] = kept }
+        }
+        return result
     }
 
     static func uninstallHooks(_ hooks: [String: Any]) -> [String: Any] {
