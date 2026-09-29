@@ -2,572 +2,557 @@
 // Modificado para ORBEX (solo el código; ningún asset de Coucou). Ver THIRD_PARTY_NOTICES.md.
 
 import SwiftUI
+import OrbexCore
 
-// MARK: - Timing constants (mirrors greeting-v2.html T = {...})
+// Saludo de ORBEX: vista `greeting` de la isla abierta (lienzo de 640×150 centrado en la isla).
+//
+// Coreografía (segundos desde que aparece la vista):
+//   0,04–0,60  ORBEX se forma como una gota de vidrio colgando del notch, se suelta y cae creciendo.
+//   0,60–1,10  Toca el piso aplastándose (squash & stretch de vidrio), rebota, le salen las piernas y
+//              sube hasta quedar parado. En cada contacto el piso hace una onda y saltan gotitas.
+//   1,18–2,80  Saluda con el brazo-gota; un reflejo le barre el cuerpo y titilan chispitas de vidrio.
+//   1,98–3,55  Cuatro mini-ORBEX de colores se asoman por el borde de abajo de la tarjeta y saludan.
+//   4,60       Avisa `.greetComplete` (el FSM cierra `greetAutoCollapseDelay` = 0,6 s después). Si el
+//              mouse está encima queda respirando y parpadeando. Con `.greetingInterrupt` vuelve en
+//              0,34 s a su lugar de la isla compacta (x = 40, y = 16, diámetro 20, como `botPosition`).
+// Con "reducir movimiento" no hay caída ni rebotes: aparece en su lugar y saluda suave.
+
+// MARK: - Tiempos
 
 private enum GT {
-    static let grow:     Double = 0.45
-    static let squint0:  Double = 0.60
-    static let squint1:  Double = 0.82
-    static let dip0:     Double = 1.25
-    static let dip1:     Double = 1.40
-    static let pop0:     Double = 1.36
-    static let pop1:     Double = 1.52
-    static let content0: Double = 2.45
-    static let content1: Double = 2.58
-    static let tuck0:    Double = 2.58
-    static let tuck1:    Double = 2.80
-    static let badge:    Double = 2.72
-    static let down0:    Double = 2.85
-    static let down1:    Double = 3.20
-    static let blink2:   Double = 3.80
-    static let tint0:    Double = 3.85
-    static let tint1:    Double = 4.15
-    static let end:      Double = 4.60   // animation done; greetComplete fires here
-    static let autoLeave:Double = 4.90   // visual collapse trigger (no hover)
-    static let COLLAPSE: Double = 0.34
+    static let hang0:     Double = 0.04   // la gota empieza a salir del notch
+    static let fall0:     Double = 0.24   // se suelta
+    static let land1:     Double = 0.60   // primer contacto con el piso
+    static let land2:     Double = 0.84   // segundo contacto (rebote chico)
+    static let stand0:    Double = 0.86   // le salen las piernas y sube
+    static let stand1:    Double = 1.10   // ya está parado
+    static let wave0:     Double = 1.18   // levanta el brazo-gota
+    static let wave1:     Double = 2.80   // lo baja
+    static let sweep0:    Double = 1.36   // reflejo que barre el cuerpo
+    static let sweep1:    Double = 1.96
+    static let text0:     Double = 1.30   // entra el texto
+    static let minis0:    Double = 1.98   // se asoma el primer mini-ORBEX
+    static let minisOut:  Double = 3.30   // se esconden
+    static let happy0:    Double = 3.45   // cara contenta al final
+    static let happy1:    Double = 3.95
+    static let idle0:     Double = 3.00   // desde acá titila una chispita por vez (siempre hay algo vivo)
+    static let end:       Double = 4.60   // termina: se avisa `.greetComplete`
+    static let autoLeave: Double = 4.90
+    static let COLLAPSE:  Double = 0.34   // igual que el cierre de la isla (closeEase de 0,34 s)
 }
 
-// MARK: - Geometry constants (640×150 reference space)
+// MARK: - Geometría (lienzo de 640×150)
 
-private let GC0     = CGPoint(x: 320, y: 90)   // ORBEX center
-private let GHB:    CGFloat = 58                // body height at full size
-private let GASP:   CGFloat = 1.34             // body width/height ratio
-private let GEAR_X: CGFloat = 40               // ear x from small island left edge (matches BotPlacement compact x=40)
-private let GEAR_Y: CGFloat = 16               // ear y
-private let GEAR_HB:CGFloat = 17               // ear body height
-private let GCARD   = CGRect(x: 10, y: 36, width: 620, height: 104)
-private let GCARD_R:CGFloat = 20
+private let GCARD = CGRect(x: 10, y: 36, width: 620, height: 104)
+private let GCARD_R: CGFloat = 20
+private let GCX: CGFloat = 320                        // centro de la isla
+private let GD: CGFloat = 54                          // diámetro de la esfera
+private let GSTAND_Y: CGFloat = 84                    // centro de la esfera parada
+private let GFLOOR_Y: CGFloat = GSTAND_Y + 0.7 * GD   // piso (base de los pies)
+// Lugar de ORBEX en la isla compacta (lo mismo que `botPosition(.compact)`).
+private let GCOMPACT_X: CGFloat = 40                  // desde el borde izquierdo de la isla compacta
+private let GCOMPACT_Y: CGFloat = 16
+private let GCOMPACT_D: CGFloat = 20
+private let GMINI_D: CGFloat = 22
 
-// Small island = compact mode size (matches our actual nw+160)
-private var GSMALL_W: CGFloat { IslandConst.notchWidth + 160 }
-private let GSMALL_H: CGFloat = IslandConst.notchHeight
+private let greetTitle = "¡Hola! Soy ORBEX"
+private let greetSubtitle = "Vivo acá arriba, en el notch."
 
-// MARK: - Easing (mirrors E = {...})
+// MARK: - Curvas
 
 private enum GE {
-    static func out(_ t: Double)   -> Double { 1 - pow(1 - t, 3) }
-    static func easeIn(_ t: Double)-> Double { t * t * t }
+    static func out(_ t: Double) -> Double { 1 - pow(1 - t, 3) }
+    static func easeIn(_ t: Double) -> Double { t * t * t }
     static func inOut(_ t: Double) -> Double {
-        t < 0.5 ? 4*t*t*t : 1 - pow(-2*t+2, 3)/2
+        t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2
     }
-    static func back(_ t: Double)  -> Double {
-        let c1=1.70158, c3=c1+1
-        return 1 + c3*pow(t-1,3) + c1*pow(t-1,2)
+    static func back(_ t: Double) -> Double {
+        let c1 = 1.70158, c3 = c1 + 1
+        return 1 + c3 * pow(t - 1, 3) + c1 * pow(t - 1, 2)
     }
 }
 
 private func gClamp(_ v: Double, _ a: Double, _ b: Double) -> Double { max(a, min(b, v)) }
-private func gLerp(_ a: Double, _ b: Double, _ t: Double)  -> Double { a + (b - a) * t }
-private func gSeg(_ t: Double, _ a: Double, _ b: Double)   -> Double { gClamp((t-a)/(b-a), 0, 1) }
-private func gLerpF(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (b-a)*t }
+private func gLerp(_ a: Double, _ b: Double, _ t: Double) -> Double { a + (b - a) * t }
+private func gSeg(_ t: Double, _ a: Double, _ b: Double) -> Double { gClamp((t - a) / (b - a), 0, 1) }
+private func gLerpF(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (b - a) * t }
 
-// MARK: - Pose
-
-private enum GEyeType { case dot, happy, content }
-
-private struct GreetPose {
-    var hb, x, y, sx, sy, tilt: Double
-    var eye: GEyeType; var open, eyeRoll: Double
-    var lookX, lookY: Double
-    var handL, handR, wave: Double
-    var badge, tint, halo, haloBlue, minis, fx: Double
-    var header, card: Double
-    // island dims (only for reference — not drawn here, just used for clip ref)
-    var iw, ih: Double
+/// Golpe de squash que se amortigua como vidrio gelatinoso: > 0 aplasta, < 0 estira.
+private func gImpulse(_ t: Double, at t0: Double, amp: Double) -> Double {
+    let d = t - t0
+    guard d >= 0 && d < 0.8 else { return 0 }
+    return amp * exp(-d * 8) * cos(d * 26)
 }
 
-// MARK: - Particles (seeded LCG matching JS reference seed=7)
-
-private struct GRingDot { let a, j, s, al: Double }
-private struct GRing    { let t0: Double; let dots: [GRingDot] }
-private struct GStreak  { let a, sp, len, t0: Double; let col: String }
-
-private let greetParticles: (rings: [GRing], streaks: [GStreak]) = {
-    var seed: UInt32 = 7
-    func rnd() -> Double {
-        seed = (seed &* 1103515245 &+ 12345) & 0x7fffffff
-        return Double(seed) / Double(0x7fff_ffff)
-    }
-    let rings = [0.10, 0.20, 0.30, 0.45, 0.60].map { t0 in
-        GRing(t0: t0, dots: (0..<170).map { _ in
-            GRingDot(a: rnd() * .pi * 2, j: (rnd()-0.5)*0.22, s: 0.7+rnd()*0.9, al: 0.45+rnd()*0.55)
-        })
-    }
-    let cols = ["#3B9EFF","#F29B38","#FF5A4E","#2EC4A0","#A78BFA"]
-    let streaks = (0..<16).map { i in
-        GStreak(a: Double(i)/16 * .pi * 2+(rnd()-0.5)*0.3, sp: 230+rnd()*260,
-                len: 6+rnd()*9, t0: 0.08+rnd()*0.14, col: cols[i%5])
-    }
-    return (rings, streaks)
-}()
-
-// MARK: - Pose computation
-
-private func greetPose(_ t: Double) -> GreetPose {
-    // island size interpolation (used as reference for clip, not drawn)
-    let gx = gSeg(t, 0, 0.5)
-    let g  = sin(.pi*gx/2) + 0.04*sin(.pi*gx)*gx
-    let iw = gLerp(Double(IslandConst.notchWidth), 640, g)
-    let ih = gLerp(Double(IslandConst.notchHeight), 150, g)
-
-    // body grows with back-ease (tiny → full size)
-    let gg = GE.back(gSeg(t, 0.02, GT.grow))
-    var hb = gLerp(3, Double(GHB), gg)
-    var x  = Double(GC0.x)
-    var y  = gLerp(16, Double(GC0.y), GE.out(gSeg(t, 0.02, GT.grow)))
-    var sx = 1.0, sy = 1.0, tilt = 0.0
-
-    // dip (1.25→1.52): body squishes forward
-    if t >= GT.dip0 && t < GT.pop1 {
-        let k = sin(.pi*gSeg(t, GT.dip0, GT.pop1))
-        y += hb*0.22*k; sy = 1-0.06*k; sx = 1+0.04*k
-    }
-    // wave sway (1.52→2.80)
-    if t >= GT.pop1 && t < GT.tuck1 {
-        let w = t - GT.pop1
-        let fade = 1 - gSeg(t, GT.tuck0, GT.tuck1)
-        x += sin(w*2 * .pi*0.9)*hb*Double(GASP)*0.05*fade
-        tilt = sin(w*2 * .pi*0.9+0.6)*0.05*fade
-        y += sin(w*2 * .pi*1.8)*0.8*fade
-    }
-    // settle (2.58→3.20)
-    if t >= GT.tuck0 && t < GT.down1 {
-        y += hb*0.12*sin(.pi*gSeg(t, GT.tuck0, GT.down1))
-    }
-
-    // eyes
-    var eye: GEyeType = .dot
-    if t >= GT.squint0 && t < GT.squint1 { eye = .happy }
-    if t >= GT.content0 && t < GT.content1 { eye = .content }
-    if t >= GT.down0 && t < GT.down1 { eye = .content }
-    var eyeRoll = 0.0
-    if t >= GT.dip0 && t < GT.pop1 { eyeRoll = sin(.pi*gSeg(t, GT.dip0, GT.pop1)) }
-    let blink: (Double) -> Double = { tb in
-        let k = gSeg(t, tb, tb+0.12); return (k>0&&k<1) ? 1-sin(.pi*k)*0.94 : 1
-    }
-    let openVal = min(blink(1.95), blink(GT.blink2))
-
-    // look
-    var lookX = 0.0, lookY = 0.0
-    if t >= GT.squint1 && t < GT.dip0 { lookY = -0.2 }
-    if t >= GT.pop1 && t < GT.content0 { lookX = 0.55; lookY = -0.45 }
-    if t >= GT.content0 && t < GT.down1 { lookX = -0.3; lookY = 0.6 }
-    if t >= GT.down1 {
-        let k = GE.inOut(gSeg(t, GT.down1, GT.down1+0.35))
-        lookX = gLerp(-0.3, 0, k); lookY = gLerp(0.6, 0, k)
-    }
-
-    // hands
-    let handL = t < GT.tuck0
-        ? GE.back(gSeg(t, GT.pop0, GT.pop0+0.14))
-        : 1 - GE.easeIn(gSeg(t, GT.tuck0, GT.tuck1-0.03))
-    let handR = t < GT.tuck0
-        ? GE.back(gSeg(t, GT.pop0+0.04, GT.pop0+0.18))
-        : 1 - GE.easeIn(gSeg(t, GT.tuck0+0.03, GT.tuck1))
-    let wave = (t >= GT.pop1 && t < GT.tuck0) ? t - GT.pop1 : -1.0
-
-    return GreetPose(
-        hb: hb, x: x, y: y, sx: sx, sy: sy, tilt: tilt,
-        eye: eye, open: openVal, eyeRoll: eyeRoll,
-        lookX: lookX, lookY: lookY,
-        handL: handL, handR: handR, wave: wave,
-        badge: GE.back(gSeg(t, GT.badge, GT.badge+0.28)),
-        tint:  0.6*GE.inOut(gSeg(t, GT.tint0, GT.tint1)),
-        halo:  GE.out(gSeg(t, 0.3, 0.7)),
-        haloBlue: gSeg(t, GT.tint0, GT.tint1),
-        minis: 0, fx: 1,
-        header: gSeg(t, 0.35, 0.6), card: gSeg(t, 0.18, 0.45),
-        iw: iw, ih: ih
-    )
+/// Parpadeo que empieza en `tb` y dura 0,14 s. Devuelve la apertura de los ojos.
+private func gBlink(_ t: Double, _ tb: Double) -> Double {
+    let k = gSeg(t, tb, tb + 0.14)
+    return (k > 0 && k < 1) ? 1 - sin(.pi * k) * 0.93 : 1
 }
 
-private func smallPose() -> GreetPose {
-    let sw = Double(GSMALL_W)
-    return GreetPose(
-        hb: Double(GEAR_HB),
-        x: 320 - sw/2 + Double(GEAR_X),
-        y: Double(GEAR_Y),
-        sx: 1, sy: 1, tilt: 0,
-        eye: .dot, open: 1, eyeRoll: 0,
-        lookX: 0, lookY: 0,
-        handL: 0, handR: 0, wave: -1,
-        badge: 1, tint: 0.6, halo: 0.6, haloBlue: 1,
-        minis: 1, fx: 1,
-        header: 0, card: 0,
-        iw: sw, ih: Double(GSMALL_H)
-    )
+// MARK: - Estilo y pose
+
+private typealias GRGB = (r: Double, g: Double, b: Double)
+
+private struct GStyle {
+    var tint: GRGB
+    var material: OrbexMaterial
+    var reduce: Bool
+    /// x de ORBEX en la isla compacta, en coordenadas del lienzo.
+    var compactX: CGFloat
+    var notchH: CGFloat
 }
 
-private func pose(_ t: Double, tc: Double) -> GreetPose {
-    if t < tc { return greetPose(min(t, GT.end + 10)) }
-    let a = greetPose(tc)
-    let b = smallPose()
-    let e = GE.inOut(gSeg(t, tc, tc + GT.COLLAPSE))
-    var p = a
-    p.iw = gLerp(a.iw, b.iw, e); p.ih = gLerp(a.ih, b.ih, e)
-    p.x  = gLerp(a.x, b.x, e);   p.y  = gLerp(a.y, b.y, e)
-    p.hb = gLerp(a.hb, b.hb, e)
-    p.badge    = gLerp(a.badge, b.badge, e)
-    p.tint     = gLerp(a.tint,  b.tint,  e)
-    p.halo     = gLerp(a.halo,  b.halo,  e)
-    p.haloBlue = gLerp(a.haloBlue, b.haloBlue, e)
-    p.header   = a.header * (1 - gSeg(t, tc, tc+0.1))
-    p.card     = a.card   * (1 - gSeg(t, tc, tc+0.18))
-    p.handL    = a.handL  * (1 - gSeg(t, tc, tc+0.15))
-    p.handR    = a.handR  * (1 - gSeg(t, tc, tc+0.15))
-    p.wave     = a.wave >= 0 ? a.wave : -1
-    p.tilt     = a.tilt * (1 - e)
-    p.sx       = gLerp(a.sx, 1, e); p.sy = gLerp(a.sy, 1, e)
-    p.eyeRoll  = a.eyeRoll * (1 - e)
-    let bk = gSeg(t, tc+0.14, tc+0.26)
-    p.eye = .dot; p.open = (bk > 0 && bk < 1) ? 1 - sin(.pi*bk)*0.94 : 1
-    p.lookX = a.lookX*(1-e); p.lookY = a.lookY*(1-e)
-    p.minis = GE.back(gSeg(t, tc+0.24, tc+0.42))
-    p.fx    = 1 - gSeg(t, tc, tc+0.2)
+private struct GPose {
+    var cx: CGFloat = GCX
+    var cy: CGFloat = GSTAND_Y          // centro de la esfera
+    var D: CGFloat = GD
+    var sx: Double = 1
+    var sy: Double = 1
+    var rot: Double = 0
+    var floorY: CGFloat = GFLOOR_Y
+    var lift: CGFloat = 0               // altura sobre el piso (achica el brillo de contacto)
+    var limbs: Double = 1               // 0…1 brazos y piernas
+    var armL: Double = 0.08
+    var armR: Double = 0.08
+    var expression: FaceExpression = .neutral
+    var open: Double = 1
+    var lookX: Double = 0
+    var lookY: Double = 0
+    var sweep: Double = 0               // 0…1 reflejo que barre el cuerpo (0 = nada)
+    var glow: Double = 0                // halo de vidrio detrás
+    var contact: Double = 1             // brillo de contacto en el piso
+    var card: Double = 0
+    var text: Double = 0
+    var fx: Double = 1                  // chispitas y gotitas (se apagan al cerrar)
+    var minis: Double = 1               // mini-ORBEX (se apagan al cerrar)
+}
+
+private func gPose(_ t: Double, s: GStyle) -> GPose {
+    var p = GPose()
+    let calm = s.reduce
+    p.card = GE.out(gSeg(t, 0.08, 0.40))
+    p.text = GE.out(gSeg(t, GT.text0, GT.text0 + 0.35))
+    p.glow = GE.out(gSeg(t, GT.land1 - 0.10, GT.land1 + 0.50))
+
+    // ── Entrada ──
+    let yLand = GFLOOR_Y - GD / 2       // centro de la esfera apoyada en el piso, todavía sin piernas
+    if calm {
+        // Reducir movimiento: crece en su lugar, sin caída ni rebotes.
+        let k = GE.out(gSeg(t, GT.hang0, GT.land1))
+        p.D = GD * CGFloat(0.4 + 0.6 * k)
+        p.limbs = gSeg(t, GT.land1 - 0.15, GT.stand1)
+        p.contact = k
+    } else if t < GT.fall0 {
+        // La gota se forma colgando del borde del notch y se va estirando.
+        let k = GE.out(gSeg(t, GT.hang0, GT.fall0))
+        p.D = gLerpF(8, 22, CGFloat(k))
+        p.cy = gLerpF(s.notchH * 0.3, s.notchH + 4, CGFloat(k))
+        p.sy = 1 + 0.24 * k
+        p.sx = 1 - 0.14 * k
+        p.limbs = 0
+        p.lift = max(0, GFLOOR_Y - (p.cy + p.D / 2))
+        p.contact = 0.3 * k
+    } else if t < GT.land1 {
+        // Se suelta y cae acelerando mientras crece; estirada por la velocidad.
+        let k = gSeg(t, GT.fall0, GT.land1)
+        p.D = gLerpF(22, GD, CGFloat(GE.out(k)))
+        p.cy = gLerpF(s.notchH + 4, yLand, CGFloat(k * k))
+        p.sy = 1.16 + 0.06 * k
+        p.sx = 0.90 - 0.04 * k
+        p.limbs = 0
+        p.lift = max(0, GFLOOR_Y - (p.cy + p.D / 2))
+        p.contact = 0.3 + 0.7 * k
+    } else {
+        // Rebota una vez; después le salen las piernas y el centro sube hasta quedar parado.
+        var lift: CGFloat = 0
+        if t < GT.land2 {
+            let k = gSeg(t, GT.land1, GT.land2)
+            lift = 11 * CGFloat(4 * k * (1 - k))
+        }
+        let st = CGFloat(GE.back(gSeg(t, GT.stand0, GT.stand1)))
+        p.cy = yLand + (GSTAND_Y - yLand) * st - lift
+        p.lift = lift
+        p.limbs = gSeg(t, GT.stand0 - 0.04, GT.stand0 + 0.14)
+        let sq = gImpulse(t, at: GT.land1, amp: 0.24)
+            + gImpulse(t, at: GT.land2, amp: 0.10)
+            + gImpulse(t, at: GT.stand1 - 0.04, amp: 0.05)
+        p.sy = 1 - sq
+        p.sx = 1 + 0.75 * sq
+    }
+
+    // ── Saludo con el brazo-gota derecho ──
+    let up = GE.back(gSeg(t, GT.wave0, GT.wave0 + 0.24))
+    let down = GE.inOut(gSeg(t, GT.wave1 - 0.24, GT.wave1))
+    let env = up * (1 - down)
+    let w = t - GT.wave0
+    let amp = calm ? 0.12 : 0.42
+    let freq = calm ? 1.1 : 2.3
+    p.armR = 0.08 + env * (2.25 + amp * sin(2 * .pi * freq * w))
+    p.armL = 0.08 + env * 0.22 + sin(t * 1.3) * 0.04
+    if !calm && env > 0 {
+        p.rot = 0.045 * sin(2 * .pi * 1.15 * w) * env
+        p.cx += CGFloat(1.5 * sin(2 * .pi * 1.15 * w + 0.6) * env)
+    }
+
+    // ── Respiración (ya parado) ──
+    if t >= GT.stand1 {
+        let b = sin(2 * .pi * 0.28 * (t - GT.stand1))
+        let a = calm ? 0.008 : 0.018
+        p.sy += a * b
+        p.sx -= a * 0.6 * b
+    }
+
+    // ── Reflejo que barre el cuerpo (y otro cada 5 s si se queda abierto) ──
+    if t > GT.sweep0 && t < GT.sweep1 {
+        p.sweep = gSeg(t, GT.sweep0, GT.sweep1)
+    } else if t > GT.end + 0.8 {
+        let ph = (t - GT.end - 0.8).truncatingRemainder(dividingBy: 5.0)
+        if ph < 0.6 { p.sweep = ph / 0.6 }
+    }
+
+    // ── Ojos ──
+    var expr: FaceExpression = .neutral
+    var open = 1.0
+    if calm {
+        if t >= GT.wave0 && t < GT.wave0 + 0.85 { expr = .happy }
+        if t >= GT.happy0 && t < GT.happy1 { expr = .happy }
+    } else if t < GT.fall0 {
+        open = 0.12                                             // la gota "duerme"
+    } else if t < GT.land1 {
+        expr = .surprised                                       // ¡se cae!
+        open = 0.12 + 0.88 * gSeg(t, GT.fall0, GT.fall0 + 0.08)
+    } else if t < GT.land1 + 0.10 {
+        open = 0.25                                             // el golpe
+    } else if t >= GT.land2 && t < GT.wave0 + 0.85 {
+        expr = .happy
+    } else if t >= GT.happy0 && t < GT.happy1 {
+        expr = .happy
+    }
+    if expr == .neutral && t >= GT.wave0 + 0.85 {
+        // Dos parpadeos mientras mira a los minis y después uno cada 3,4 s.
+        open = min(gBlink(t, 2.30), gBlink(t, 3.10))
+        if t >= GT.happy1 {
+            open = gBlink((t - GT.happy1).truncatingRemainder(dividingBy: 3.4), 1.8)
+        }
+    }
+    p.expression = expr
+    p.open = open
+
+    // ── Mirada ──
+    if t >= GT.land1 && t < GT.land2 {
+        p.lookY = 0.04                                          // mira el piso
+    } else if t >= GT.minis0 + 0.05 && t < GT.minis0 + 0.55 {
+        p.lookX = -0.06; p.lookY = 0.03                         // a los minis de la izquierda
+    } else if t >= GT.minis0 + 0.55 && t < GT.minis0 + 1.05 {
+        p.lookX = 0.06; p.lookY = 0.03                          // a los de la derecha
+    } else if t >= GT.happy1 {
+        p.lookX = sin(t * 0.37) * 0.025
+        p.lookY = cos(t * 0.23) * 0.012
+    }
     return p
 }
 
-// MARK: - Drawing helpers
-
-private func gHex(_ hex: String, alpha: CGFloat = 1) -> CGColor {
-    let h = hex.trimmingCharacters(in: CharacterSet(charactersIn:"#"))
-    let v = UInt64(h, radix: 16) ?? 0
-    return CGColor(red: CGFloat((v>>16)&0xFF)/255,
-                   green: CGFloat((v>>8)&0xFF)/255,
-                   blue: CGFloat(v&0xFF)/255, alpha: alpha)
+/// Pose en la isla compacta (sin brazos ni piernas, igual que el ORBEX de `BotPlacement`).
+private func gCompactPose(_ s: GStyle) -> GPose {
+    var p = GPose()
+    p.cx = s.compactX
+    p.cy = GCOMPACT_Y
+    p.D = GCOMPACT_D
+    p.floorY = GCOMPACT_Y + 0.7 * GCOMPACT_D
+    p.limbs = 0
+    p.contact = 0
+    return p
 }
 
-private func gRR(_ ctx: CGContext, _ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat) {
-    let r = max(0, min(r, w/2, h/2))
-    ctx.beginPath()
-    ctx.move(to: CGPoint(x: x+r, y: y))
-    ctx.addArc(tangent1End: CGPoint(x: x+w, y: y), tangent2End: CGPoint(x: x+w, y: y+h), radius: r)
-    ctx.addArc(tangent1End: CGPoint(x: x+w, y: y+h), tangent2End: CGPoint(x: x, y: y+h), radius: r)
-    ctx.addArc(tangent1End: CGPoint(x: x, y: y+h), tangent2End: CGPoint(x: x, y: y), radius: r)
-    ctx.addArc(tangent1End: CGPoint(x: x, y: y), tangent2End: CGPoint(x: x+r, y: y), radius: r)
-    ctx.closePath()
+/// Pose en el instante `t`; desde `tc` (interrupción) vuelve a la isla compacta.
+private func gPoseAt(_ t: Double, tc: Double, s: GStyle) -> GPose {
+    if t < tc { return gPose(t, s: s) }
+    let a = gPose(tc, s: s)
+    let b = gCompactPose(s)
+    let e = GE.inOut(gSeg(t, tc, tc + GT.COLLAPSE))
+    let ef = CGFloat(e)
+    var p = a
+    p.cx = gLerpF(a.cx, b.cx, ef)
+    p.cy = gLerpF(a.cy, b.cy, ef)
+    p.D = gLerpF(a.D, b.D, ef)
+    p.floorY = gLerpF(a.floorY, b.floorY, ef)
+    p.lift = a.lift * (1 - ef)
+    p.sx = gLerp(a.sx, 1, e)
+    p.sy = gLerp(a.sy, 1, e)
+    p.rot = a.rot * (1 - e)
+    p.limbs = a.limbs * (1 - gSeg(t, tc, tc + 0.20))
+    p.armL = gLerp(a.armL, 0.08, e)
+    p.armR = gLerp(a.armR, 0.08, e)
+    p.contact = a.contact * (1 - gSeg(t, tc, tc + 0.15))
+    p.glow = a.glow * (1 - e)
+    p.card = a.card * (1 - gSeg(t, tc, tc + 0.18))
+    p.text = a.text * (1 - gSeg(t, tc, tc + 0.10))
+    p.fx = 1 - gSeg(t, tc, tc + 0.20)
+    p.minis = 1 - gSeg(t, tc, tc + 0.15)
+    p.sweep = 0
+    p.expression = .neutral
+    p.open = gBlink(t, tc + 0.14)
+    p.lookX = a.lookX * (1 - e)
+    p.lookY = a.lookY * (1 - e)
+    return p
 }
 
-private func bodyShapePath(hw: CGFloat, hh: CGFloat) -> CGPath {
-    let n: CGFloat = 3.2
-    let path = CGMutablePath()
-    let steps = 96
-    for i in 0...steps {
-        let a = CGFloat(i)/CGFloat(steps)*2 * .pi
-        let ca = cos(a), sa = sin(a)
-        let px = hw * (ca < 0 ? -1 : 1) * pow(abs(ca), 2/n)
-        let py = hh * (sa < 0 ? -1 : 1) * pow(abs(sa), 2/n)
-        if i == 0 { path.move(to: CGPoint(x: px, y: py)) }
-        else { path.addLine(to: CGPoint(x: px, y: py)) }
+// MARK: - Dibujo
+
+private func gColor(_ c: GRGB, _ a: Double) -> Color {
+    Color(red: c.r, green: c.g, blue: c.b).opacity(a)
+}
+
+/// ORBEX completo con las partes de `OrbexPainter` (piernas, cuerpo, reflejo, ojos, brazos).
+/// El squash & stretch va anclado abajo de la esfera, como en `OrbexPainter.draw`.
+private func gDrawFigure(_ ctx: inout GraphicsContext, p: GPose, s: GStyle) {
+    let D = p.D
+    guard D > 0.5 else { return }
+    let tint = s.tint
+    let feetY = p.floorY - 0.05 * D - p.lift
+
+    if p.contact > 0.01 {
+        var g = ctx
+        g.opacity = p.contact * p.card
+        OrbexPainter.drawContactGlow(&g, x: p.cx, floorY: p.floorY, D: D, lift: p.lift)
     }
-    path.closeSubpath(); return path
-}
-
-// Linear gradient fill clipped to path (body-local coords, centered at origin)
-private func whiteFill(_ ctx: CGContext, _ path: CGPath,
-                        x0: CGFloat, y0: CGFloat, x1: CGFloat, y1: CGFloat) {
-    let cs   = CGColorSpaceCreateDeviceRGB()
-    let c0   = CGColor(red: 251/255, green: 251/255, blue: 252/255, alpha: 1)
-    let c1   = CGColor(red: 231/255, green: 233/255, blue: 236/255, alpha: 1)
-    guard let g = CGGradient(colorsSpace: cs, colors: [c0,c1] as CFArray, locations: [0,1]) else { return }
-    ctx.saveGState()
-    ctx.addPath(path); ctx.clip()
-    ctx.drawLinearGradient(g, start: CGPoint(x: x0, y: y0), end: CGPoint(x: x1, y: y1), options: [])
-    ctx.restoreGState()
-}
-
-private func drawHandL(_ ctx: CGContext, hw: CGFloat, hh: CGFloat, p: GreetPose) {
-    let k = CGFloat(p.handL); guard k > 0.01 else { return }
-    let hb = hh*2, r = hb*0.15*k
-    let rx = gLerpF(-hw*0.35, -hw-hb*0.22, k)
-    let ry0 = gLerpF(hh*0.85, hh*0.62, k)
-    var ry = Double(ry0)
-    if p.wave >= 0 { ry += sin(p.wave*6)*Double(hb)*0.02 }
-    ctx.saveGState()
-    ctx.translateBy(x: rx, y: CGFloat(ry))
-    let circ = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: r*2, height: r*2), transform: nil)
-    whiteFill(ctx, circ, x0: r, y0: -r, x1: -r, y1: r)
-    ctx.addEllipse(in: CGRect(x: -r, y: -r, width: r*2, height: r*2))
-    ctx.setStrokeColor(CGColor(red: 0, green: 0, blue: 0, alpha: 0.08))
-    ctx.setLineWidth(0.8); ctx.strokePath()
-    ctx.restoreGState()
-}
-
-private func drawHandR(_ ctx: CGContext, hw: CGFloat, hh: CGFloat, p: GreetPose) {
-    let k = CGFloat(p.handR); guard k > 0.01 else { return }
-    let hb = hh*2, L = hb*0.40*k, T2 = hb*0.22*k
-    let rx0 = gLerpF(hw*0.35, hw+hb*0.20, k)
-    let ry0 = gLerpF(hh*0.85, hh*0.20, k)
-    var rx = Double(rx0), ry = Double(ry0), ang = -0.61
-    if p.wave >= 0 {
-        let w = p.wave*2 * .pi*2.5
-        ang += sin(w)*0.21; ry += sin(w+0.8)*Double(hb)*0.04; rx += cos(w)*Double(hb)*0.015
-    }
-    ctx.saveGState()
-    ctx.translateBy(x: CGFloat(rx), y: CGFloat(ry)); ctx.rotate(by: CGFloat(ang))
-    let cap = CGMutablePath()
-    gRR(ctx, -L/2, -T2/2, L, T2, T2/2)
-    cap.addPath(ctx.path!); ctx.beginPath()  // use current ctx path as clip path
-    whiteFill(ctx, cap, x0: L/2, y0: -T2/2, x1: -L/2, y1: T2/2)
-    gRR(ctx, -L/2, -T2/2, L, T2, T2/2)
-    ctx.setStrokeColor(CGColor(red: 0, green: 0, blue: 0, alpha: 0.08))
-    ctx.setLineWidth(0.8); ctx.strokePath()
-    ctx.restoreGState()
-}
-
-private func drawBot(_ ctx: CGContext, p: GreetPose) {
-    let hh = CGFloat(p.hb/2), hw = hh*GASP; guard hh > 0.4 else { return }
-
-    // Halo (golden → blue) — soft diffuse aura, two-pass for smoothness
-    if p.halo > 0 {
-        let bl = CGFloat(p.haloBlue)
-        let cr = gLerpF(232/255, 59/255, bl)
-        let cg = gLerpF(195/255, 158/255, bl)
-        let cb = gLerpF(154/255, 255/255, bl)
-        let cs = CGColorSpaceCreateDeviceRGB()
-        let cx = CGFloat(p.x), cy = CGFloat(p.y)
-        // Inner soft glow
-        let R1 = hw * 2.6
-        let ic1 = CGColor(red: cr, green: cg, blue: cb, alpha: CGFloat(0.18 * p.halo))
-        let oc1 = CGColor(red: cr, green: cg, blue: cb, alpha: 0)
-        if let g1 = CGGradient(colorsSpace: cs, colors: [ic1, oc1] as CFArray, locations: [0, 1]) {
-            ctx.saveGState()
-            ctx.addEllipse(in: CGRect(x: cx-R1, y: cy-R1, width: R1*2, height: R1*2))
-            ctx.clip()
-            ctx.drawRadialGradient(g1, startCenter: CGPoint(x: cx, y: cy), startRadius: 0,
-                                   endCenter: CGPoint(x: cx, y: cy), endRadius: R1, options: [])
-            ctx.restoreGState()
-        }
-        // Outer wide aura
-        let R2 = hw * 4.2
-        let ic2 = CGColor(red: cr, green: cg, blue: cb, alpha: CGFloat(0.07 * p.halo))
-        let oc2 = CGColor(red: cr, green: cg, blue: cb, alpha: 0)
-        if let g2 = CGGradient(colorsSpace: cs, colors: [ic2, oc2] as CFArray, locations: [0, 1]) {
-            ctx.saveGState()
-            ctx.addEllipse(in: CGRect(x: cx-R2, y: cy-R2, width: R2*2, height: R2*2))
-            ctx.clip()
-            ctx.drawRadialGradient(g2, startCenter: CGPoint(x: cx, y: cy), startRadius: 0,
-                                   endCenter: CGPoint(x: cx, y: cy), endRadius: R2, options: [])
-            ctx.restoreGState()
+    if p.limbs > 0.01 {
+        var legs = ctx
+        legs.opacity = p.limbs
+        for side in [-1.0, 1.0] {
+            OrbexPainter.drawLeg(&legs, side: side, bodyCenter: CGPoint(x: p.cx, y: p.cy), footY: feetY,
+                                 D: D, tint: tint, crouch: 0, material: s.material)
         }
     }
 
-    ctx.saveGState()
-    ctx.translateBy(x: CGFloat(p.x), y: CGFloat(p.y))
-    ctx.rotate(by: CGFloat(p.tilt))
-    ctx.scaleBy(x: CGFloat(p.sx), y: CGFloat(p.sy))
+    var body = ctx
+    body.translateBy(x: p.cx, y: p.cy)
+    body.rotate(by: .radians(p.rot))
+    body.translateBy(x: 0, y: 0.5 * D)
+    body.scaleBy(x: CGFloat(p.sx), y: CGFloat(p.sy))
+    body.translateBy(x: 0, y: -0.5 * D)
+    OrbexPainter.drawBody(&body, D: D, tint: tint, material: s.material)
+    if p.sweep > 0 && p.sweep < 1 { gDrawSweep(&body, D: D, k: p.sweep) }
 
-    // Hands behind body
-    drawHandL(ctx, hw: hw, hh: hh, p: p)
-    drawHandR(ctx, hw: hw, hh: hh, p: p)
+    var face = CharacterFrame()
+    face.eye = EyeShape.forExpression(p.expression)
+    face.eyeOpenness = p.open
+    face.look = (p.lookX, p.lookY)
+    OrbexPainter.drawEyes(&body, f: face, D: D)
 
-    // Body
-    let mpath = bodyShapePath(hw: hw, hh: hh)
-    whiteFill(ctx, mpath, x0: hw*0.6, y0: -hh, x1: -hw*0.6, y1: hh)
-
-    // Blue tint overlay
-    if p.tint > 0 {
-        let cs = CGColorSpaceCreateDeviceRGB()
-        let c0 = CGColor(red: 127/255, green: 180/255, blue: 234/255, alpha: CGFloat(p.tint))
-        let c1 = CGColor(red: 127/255, green: 180/255, blue: 234/255, alpha: 0)
-        if let g = CGGradient(colorsSpace: cs, colors: [c0,c1] as CFArray, locations: [0,1]) {
-            ctx.saveGState()
-            ctx.addPath(mpath); ctx.clip()
-            ctx.drawLinearGradient(g, start: CGPoint(x: 0, y: hh), end: CGPoint(x: 0, y: -hh*0.1), options: [])
-            ctx.restoreGState()
-        }
+    if p.limbs > 0.01 {
+        var arms = body
+        arms.opacity = p.limbs
+        OrbexPainter.drawArm(&arms, side: -1, raise: p.armL, D: D, tint: tint, material: s.material)
+        OrbexPainter.drawArm(&arms, side: 1, raise: p.armR, D: D, tint: tint, material: s.material)
     }
-
-    // Eyes (clipped to body)
-    ctx.saveGState()
-    ctx.addPath(mpath); ctx.clip()
-    ctx.setFillColor(gHex("#16171A"))
-    ctx.setStrokeColor(gHex("#16171A"))
-    let er = CGFloat(p.hb*0.06)
-    let sp = CGFloat(p.hb*0.19)
-    let lx = CGFloat(p.lookX)*hw*0.42
-    let ly = CGFloat(p.lookY)*hh*0.28 + hh*0.12 + CGFloat(p.eyeRoll)*hh*1.25
-    for sd: CGFloat in [-1, 1] {
-        ctx.saveGState()
-        ctx.translateBy(x: sd*sp+lx, y: ly)
-        if p.eye == .happy {
-            ctx.setLineWidth(er*0.95)
-            ctx.setLineCap(.round)
-            ctx.beginPath()
-            ctx.addArc(center: CGPoint(x: 0, y: er*0.6), radius: er*1.25,
-                       startAngle: .pi*1.15, endAngle: .pi*1.85, clockwise: false)
-            ctx.strokePath()
-        } else if p.eye == .content {
-            ctx.setLineWidth(er*0.95)
-            ctx.setLineCap(.round)
-            ctx.beginPath()
-            ctx.addArc(center: CGPoint(x: 0, y: -er*0.5), radius: er*1.25,
-                       startAngle: .pi*0.15, endAngle: .pi*0.85, clockwise: false)
-            ctx.strokePath()
-        } else {
-            ctx.scaleBy(x: 1, y: max(0.12, CGFloat(p.open)))
-            ctx.addEllipse(in: CGRect(x: -er, y: -er, width: er*2, height: er*2))
-            ctx.fillPath()
-        }
-        ctx.restoreGState()
-    }
-    ctx.restoreGState()
-
-    // Activity badge (top-left corner)
-    if p.badge > 0.01 {
-        let bs = CGFloat(p.badge)
-        let br = hh*0.3
-        ctx.saveGState()
-        ctx.translateBy(x: -hw*0.78, y: -hh*0.72)
-        ctx.scaleBy(x: bs, y: bs)
-        ctx.setFillColor(gHex("#000000"))
-        ctx.addEllipse(in: CGRect(x: -(br+hh*0.07), y: -(br+hh*0.07),
-                                  width: (br+hh*0.07)*2, height: (br+hh*0.07)*2))
-        ctx.fillPath()
-        ctx.setFillColor(gHex("#3BA0F5"))
-        ctx.addEllipse(in: CGRect(x: -br, y: -br, width: br*2, height: br*2)); ctx.fillPath()
-        ctx.setFillColor(gHex("#0B1B3A"))
-        for i: CGFloat in [-1, 0, 1] {
-            ctx.addEllipse(in: CGRect(x: i*br*0.5-br*0.17, y: -br*0.17, width: br*0.34, height: br*0.34))
-            ctx.fillPath()
-        }
-        ctx.restoreGState()
-    }
-
-    ctx.restoreGState()
 }
 
-private func drawParticles(_ ctx: CGContext, t: Double, tc: Double, p: GreetPose) {
-    guard p.card > 0 || p.fx < 1 else { return }
-    let fx = p.fx
-    // RINGS
-    for ring in greetParticles.rings {
-        let k = gSeg(t, ring.t0, ring.t0 + 1.35)
+/// Banda de luz que cruza la esfera en diagonal (recortada al cuerpo). `k` va de 0 a 1.
+private func gDrawSweep(_ ctx: inout GraphicsContext, D: CGFloat, k: Double) {
+    var s = ctx
+    s.clip(to: Path(ellipseIn: CGRect(x: -D / 2, y: -D / 2, width: D, height: D)))
+    s.rotate(by: .degrees(-24))
+    let w = 0.26 * D
+    let x = CGFloat(gLerp(-0.9, 0.9, GE.inOut(k))) * D
+    let a = 0.5 * sin(.pi * k)
+    let band = CGRect(x: x - w / 2, y: -D, width: w, height: 2 * D)
+    s.fill(Path(band), with: .linearGradient(
+        Gradient(colors: [Color.white.opacity(0), Color.white.opacity(a), Color.white.opacity(0)]),
+        startPoint: CGPoint(x: band.minX, y: 0), endPoint: CGPoint(x: band.maxX, y: 0)))
+}
+
+/// Halo suave del color de ORBEX detrás de la esfera.
+private func gDrawGlow(_ ctx: inout GraphicsContext, p: GPose, s: GStyle) {
+    let R = p.D * 1.5
+    let c = CGPoint(x: p.cx, y: p.cy)
+    ctx.fill(Path(ellipseIn: CGRect(x: c.x - R, y: c.y - R, width: 2 * R, height: 2 * R)),
+             with: .radialGradient(Gradient(colors: [gColor(s.tint, 0.16 * p.glow), gColor(s.tint, 0)]),
+                                   center: c, startRadius: 0, endRadius: R))
+}
+
+// Gotitas de vidrio que saltan en el primer contacto (semilla fija: siempre iguales).
+private struct GDrop { let vx, vy, r, life: Double }
+
+private let gDrops: [GDrop] = {
+    var seed: UInt32 = 11
+    func rnd() -> Double {
+        seed = seed &* 1_664_525 &+ 1_013_904_223
+        return Double(seed >> 8) / Double(1 << 24)
+    }
+    return (0..<10).map { i in
+        let side: Double = i % 2 == 0 ? -1 : 1
+        return GDrop(vx: side * (40 + rnd() * 90), vy: -(70 + rnd() * 90),
+                     r: 1.1 + rnd() * 1.2, life: 0.45 + rnd() * 0.25)
+    }
+}()
+
+/// Onda en el piso en cada contacto y gotitas que saltan en el primero.
+private func gDrawSplash(_ ctx: inout GraphicsContext, t: Double, alpha: Double) {
+    let ripples: [(t0: Double, w0: Double, w1: Double)] = [(GT.land1, 0.5, 2.2), (GT.land2, 0.4, 1.4)]
+    for r in ripples {
+        let k = gSeg(t, r.t0, r.t0 + 0.5)
         guard k > 0 && k < 1 else { continue }
-        let rx = gLerpF(14, 380, CGFloat(GE.out(k)))
-        let ry = rx * 0.34
-        let fade = CGFloat((1-k) * (k < 0.08 ? k/0.08 : 1) * fx * p.card)
-        for dot in ring.dots {
-            let r: CGFloat = 1 + CGFloat(dot.j)
-            ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: CGFloat(dot.al)*fade))
-            let dx = CGFloat(GC0.x) + cos(CGFloat(dot.a))*rx*r
-            let dy = CGFloat(GC0.y) + sin(CGFloat(dot.a))*ry*r
-            ctx.fill(CGRect(x: dx, y: dy, width: CGFloat(dot.s), height: CGFloat(dot.s)))
-        }
+        let w = GD * CGFloat(gLerp(r.w0, r.w1, GE.out(k)))
+        let h = w * 0.16
+        let rect = CGRect(x: GCX - w / 2, y: GFLOOR_Y - h / 2, width: w, height: h)
+        ctx.stroke(Path(ellipseIn: rect), with: .color(Color.white.opacity(0.35 * (1 - k) * alpha)), lineWidth: 1.2)
     }
-    // STREAKS
-    for s in greetParticles.streaks {
-        let k = gSeg(t, s.t0, s.t0 + 0.6)
-        guard k > 0 && k < 1 else { continue }
-        let dist = CGFloat(s.sp * GE.out(k) * 0.9 + 10)
-        let alpha = CGFloat((1-k) * fx)
-        ctx.setStrokeColor(gHex(s.col, alpha: alpha))
-        ctx.setLineWidth(1.6); ctx.setLineCap(.round)
-        let a = CGFloat(s.a)
-        ctx.beginPath()
-        ctx.move(to: CGPoint(x: CGFloat(GC0.x)+cos(a)*(dist-CGFloat(s.len)),
-                             y: CGFloat(GC0.y)+sin(a)*(dist-CGFloat(s.len))*0.42))
-        ctx.addLine(to: CGPoint(x: CGFloat(GC0.x)+cos(a)*dist,
-                                y: CGFloat(GC0.y)+sin(a)*dist*0.42))
-        ctx.strokePath()
+    let d = t - GT.land1
+    guard d > 0 && d < 0.75 else { return }
+    for drop in gDrops where d < drop.life {
+        let x = Double(GCX) + drop.vx * d
+        let y = Double(GFLOOR_Y) - 2 + drop.vy * d + 260 * d * d
+        let a = (1 - d / drop.life) * alpha
+        let r = drop.r
+        ctx.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r)),
+                 with: .color(Color.white.opacity(0.75 * a)))
     }
 }
 
-private func drawHeader(_ ctx: CGContext, alpha: Double) {
-    guard alpha > 0 else { return }
-    ctx.saveGState()
-    ctx.setAlpha(CGFloat(alpha))
-    // VS Code icon pill (top-left)
-    gRR(ctx, 18, 4, 44, 26, 13)
-    ctx.setFillColor(gHex("#1D1F23")); ctx.fillPath()
-    ctx.setFillColor(gHex("#F5F6F8"))
-    // Simple chevron-up shape
-    ctx.beginPath()
-    ctx.move(to: CGPoint(x: 33, y: 20)); ctx.addLine(to: CGPoint(x: 40, y: 13))
-    ctx.addLine(to: CGPoint(x: 47, y: 20)); ctx.addLine(to: CGPoint(x: 47, y: 25))
-    ctx.addLine(to: CGPoint(x: 33, y: 25)); ctx.closePath(); ctx.fillPath()
-    // Two dots (circles) top-right
-    ctx.setFillColor(gHex("#8E939C"))
-    ctx.addEllipse(in: CGRect(x: 75.5, y: 10.5, width: 13, height: 13)); ctx.fillPath()
-    ctx.addEllipse(in: CGRect(x: 572, y: 11, width: 12, height: 12)); ctx.fillPath()
-    ctx.setFillColor(gHex("#000000"))
-    ctx.addEllipse(in: CGRect(x: 575.6, y: 14.6, width: 4.8, height: 4.8)); ctx.fillPath()
-    ctx.restoreGState()
-}
+// Chispitas alrededor de ORBEX: posición (en diámetros, desde el centro) y cuándo titilan.
+// Quedan por debajo del notch (y > 36) para que la cámara no las tape.
+private let gTwinkles: [(dx: CGFloat, dy: CGFloat, t0: Double)] = [
+    (-0.95, -0.50, 1.24), (1.00, -0.62, 1.40), (-1.28, 0.08, 1.56),
+    (1.32, -0.06, 1.72), (-0.55, -0.80, 1.90), (0.62, -0.80, 2.10),
+]
 
-private let miniColors = ["#E86A6A","#3E86E0","#EFAE5A","#8C73F2"]
-
-private func drawMinis(_ ctx: CGContext, alpha: Double) {
-    guard alpha > 0.01 else { return }
-    let cx = 320 + GSMALL_W/2 - 27
-    let cy: CGFloat = 16
-    let sp: CGFloat = 6
-    let offsets: [(CGFloat, CGFloat)] = [(-sp,-sp),(sp,-sp),(-sp,sp),(sp,sp)]
-    for (i,(dx,dy)) in offsets.enumerated() {
-        ctx.saveGState()
-        ctx.translateBy(x: cx+dx, y: cy+dy)
-        ctx.scaleBy(x: CGFloat(alpha), y: CGFloat(alpha))
-        ctx.setFillColor(gHex(miniColors[i]))
-        ctx.addPath(bodyShapePath(hw: 5.3, hh: 4)); ctx.fillPath()
-        ctx.restoreGState()
+private func gDrawTwinkles(_ ctx: inout GraphicsContext, t: Double, p: GPose, s: GStyle) {
+    let life = 0.55
+    var active: [(index: Int, k: Double)] = []
+    for (i, tw) in gTwinkles.enumerated() {
+        let k = (t - tw.t0) / life
+        if k > 0 && k < 1 { active.append((i, k)) }
+    }
+    if t >= GT.idle0 {
+        // En reposo: una chispita por vez, rotando de lugar.
+        let slot = 0.9
+        let n = Int((t - GT.idle0) / slot)
+        let k = (t - GT.idle0 - Double(n) * slot) / life
+        if k > 0 && k < 1 { active.append((n % gTwinkles.count, k)) }
+    }
+    for item in active {
+        let tw = gTwinkles[item.index]
+        let pulse = sin(.pi * item.k)
+        let size: CGFloat = s.reduce ? GD * 0.16 : GD * 0.22 * CGFloat(pulse)
+        guard size > 0.5 else { continue }
+        var c = ctx
+        c.opacity = p.fx * pulse
+        c.translateBy(x: p.cx + tw.dx * p.D, y: p.cy + tw.dy * p.D)
+        if !s.reduce { c.rotate(by: .radians(item.k * 0.9)) }
+        let h = size * 0.45
+        c.fill(Path(ellipseIn: CGRect(x: -h, y: -h, width: 2 * h, height: 2 * h)), with: .color(gColor(s.tint, 0.28)))
+        c.fill(OrbexPainter.sparkle(size: size), with: .color(Color.white.opacity(0.95)))
     }
 }
 
-// MARK: - Full draw function
-
-private func drawGreeting(_ ctx: CGContext, size: CGSize, t: Double, tc: Double) {
-    let p = pose(t, tc: tc)
-
-    // Card background (dark panel)
-    if p.card > 0 {
-        ctx.saveGState()
-        ctx.setAlpha(CGFloat(p.card))
-        gRR(ctx, GCARD.minX, GCARD.minY, GCARD.width, GCARD.height, GCARD_R)
-        ctx.setFillColor(gHex("#141518")); ctx.fillPath()
-        ctx.restoreGState()
-
-        // Particles inside card area
-        ctx.saveGState()
-        gRR(ctx, GCARD.minX, GCARD.minY, GCARD.width, GCARD.height, GCARD_R)
-        ctx.clip()
-        drawParticles(ctx, t: t, tc: tc, p: p)
-        ctx.restoreGState()
-    } else if tc.isFinite && t >= tc {
-        // During collapse, fade particles without card clip
-        ctx.saveGState()
-        drawParticles(ctx, t: t, tc: tc, p: p)
-        ctx.restoreGState()
-    }
-
-    // drawHeader: no icons during greeting
-    drawMinis(ctx, alpha: p.minis)
-    drawBot(ctx, p: p)
+// Mini-ORBEX de colores que se asoman por el borde de abajo de la tarjeta.
+private struct GMini {
+    let x: CGFloat
+    let color: GRGB
+    let delay: Double
 }
 
-// MARK: - SwiftUI View
+private let gMinis: [GMini] = [
+    GMini(x: 118, color: (0.95, 0.63, 0.29), delay: 0.00),   // naranja
+    GMini(x: 440, color: (0.55, 0.72, 0.42), delay: 0.10),   // verde
+    GMini(x: 200, color: (0.47, 0.74, 0.98), delay: 0.20),   // celeste
+    GMini(x: 522, color: (0.69, 0.49, 0.91), delay: 0.30),   // violeta
+]
+
+/// Se dibujan con el contexto recortado a la tarjeta: al subir parecen salir de atrás del borde.
+private func gDrawMinis(_ ctx: inout GraphicsContext, t: Double, s: GStyle) {
+    let bottom = GCARD.maxY
+    let D = GMINI_D
+    for m in gMinis {
+        let t0 = GT.minis0 + m.delay
+        guard t > t0 else { continue }
+        let tOut = GT.minisOut + m.delay * 0.5
+        let upK = s.reduce ? GE.out(gSeg(t, t0, t0 + 0.40)) : GE.back(gSeg(t, t0, t0 + 0.30))
+        let downK = GE.easeIn(gSeg(t, tOut, tOut + 0.24))
+        let vis = upK * (1 - downK)
+        guard vis > 0.001 else { continue }
+        let hiddenY = bottom + D * 0.62
+        let peekY = bottom - D * 0.58
+        let cy = hiddenY + (peekY - hiddenY) * CGFloat(vis)
+        let inward: Double = m.x < GCX ? 1 : -1       // el brazo del lado de ORBEX es el que saluda
+        let w = t - t0 - 0.18
+        let wEnv = gSeg(t, t0 + 0.15, t0 + 0.30) * (1 - gSeg(t, tOut - 0.25, tOut))
+        let wave = wEnv * (2.1 + (s.reduce ? 0.1 : 0.5) * sin(2 * .pi * 2.8 * w))
+
+        var face = CharacterFrame()
+        face.eye = EyeShape.forExpression(wEnv > 0.5 && w < 0.55 ? .happy : .neutral)
+        face.eyeOpenness = gBlink(t, t0 + 0.72)
+        face.look = (0.05 * inward, -0.01)
+
+        var c = ctx
+        if s.reduce { c.opacity = vis }
+        c.translateBy(x: m.x, y: cy)
+        if !s.reduce { c.rotate(by: .radians(0.08 * inward * sin(2 * .pi * 1.4 * w) * wEnv)) }
+        OrbexPainter.drawBody(&c, D: D, tint: m.color, material: s.material)
+        OrbexPainter.drawEyes(&c, f: face, D: D)
+        OrbexPainter.drawArm(&c, side: -inward, raise: 0.1, D: D, tint: m.color, material: s.material)
+        OrbexPainter.drawArm(&c, side: inward, raise: 0.1 + wave, D: D, tint: m.color, material: s.material)
+    }
+}
+
+private func gDrawText(_ ctx: inout GraphicsContext, alpha: Double) {
+    var c = ctx
+    c.opacity = alpha
+    c.translateBy(x: CGFloat(-8 * (1 - alpha)), y: 0)
+    let title = Text(greetTitle)
+        .font(.system(size: 15, weight: .semibold, design: .rounded))
+        .foregroundColor(Color(red: 0.96, green: 0.965, blue: 0.97))
+    let subtitle = Text(greetSubtitle)
+        .font(.system(size: 12))
+        .foregroundColor(Color(red: 0.58, green: 0.6, blue: 0.64))
+    c.draw(title, at: CGPoint(x: 34, y: 70), anchor: .leading)
+    c.draw(subtitle, at: CGPoint(x: 34, y: 91), anchor: .leading)
+}
+
+private func gDrawGreeting(_ ctx: inout GraphicsContext, t: Double, tc: Double, s: GStyle) {
+    let p = gPoseAt(t, tc: tc, s: s)
+    let card = Path(roundedRect: GCARD, cornerRadius: GCARD_R)
+
+    if p.card > 0.001 {
+        var c = ctx
+        c.opacity = p.card
+        c.fill(card, with: .color(Color(red: 0.078, green: 0.082, blue: 0.094)))
+        c.stroke(card, with: .color(Color.white.opacity(0.05)), lineWidth: 1)
+    }
+    if p.glow > 0.01 { gDrawGlow(&ctx, p: p, s: s) }
+    if p.minis > 0.01 && p.card > 0.01 && t > GT.minis0 {
+        var m = ctx
+        m.clip(to: card)
+        m.opacity = p.minis
+        gDrawMinis(&m, t: t, s: s)
+    }
+    if p.text > 0.01 { gDrawText(&ctx, alpha: p.text) }
+    if p.fx > 0.01 && !s.reduce { gDrawSplash(&ctx, t: t, alpha: p.fx) }
+    gDrawFigure(&ctx, p: p, s: s)
+    if p.fx > 0.01 { gDrawTwinkles(&ctx, t: t, p: p, s: s) }
+}
+
+// MARK: - Vista
 
 struct GreetingCanvasView: View {
     @ObservedObject var state: AppState
 
     @State private var startDate = Date()
-    @State private var tc: Double = .infinity   // collapses only when FSM fires .greetingInterrupt
+    @State private var tc: Double = .infinity   // solo colapsa cuando el FSM manda `.greetingInterrupt`
     @State private var greetFired = false
-
-    // Scheduled works (cancellable)
-    @State private var soundWork1: DispatchWorkItem? = nil
-    @State private var soundWork2: DispatchWorkItem? = nil
-    @State private var doneWork:   DispatchWorkItem? = nil
+    @State private var works: [DispatchWorkItem] = []   // sonidos y aviso de fin (cancelables)
 
     var body: some View {
-        TimelineView(.animation) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / max(24, AppModel.shared.characterFPS))) { timeline in
             let t = timeline.date.timeIntervalSince(startDate)
-            Canvas { context, size in
-                context.withCGContext { cgCtx in
-                    drawGreeting(cgCtx, size: size, t: t, tc: tc)
-                }
+            let style = currentStyle()
+            let tcNow = tc
+            Canvas { context, _ in
+                gDrawGreeting(&context, t: t, tc: tcNow, s: style)
             }
-            // Fire greetComplete exactly once at T.end (when no hover)
+            // Avisa `.greetComplete` una sola vez al llegar al final (si nadie lo interrumpió antes).
             .onChange(of: !greetFired && t >= GT.end && tc >= GT.autoLeave) { _, trigger in
                 if trigger { fireGreetComplete() }
             }
@@ -582,15 +567,29 @@ struct GreetingCanvasView: View {
             cancelWorks()
         }
         .onReceive(NotificationCenter.default.publisher(for: .greetingHover)) { _ in
-            // Mouse on notch during greeting → hold open (no auto-collapse)
+            // Mouse sobre el notch durante el saludo → se queda abierto (sin colapso automático).
             if tc >= GT.autoLeave { tc = .infinity }
         }
         .onReceive(NotificationCenter.default.publisher(for: .greetingInterrupt)) { _ in
-            // Mouse left during greeting → start collapse from current time
+            // El FSM pasó a compacta → ORBEX vuelve a su lugar desde donde esté.
             let t = Date().timeIntervalSince(startDate)
             if tc.isInfinite || tc > t { tc = t }
-            cancelWorks()   // cancel auto-done timer (FSM already went to .petit)
+            cancelWorks()
         }
+    }
+
+    /// Color, material y preferencias del momento (tema, "reducir movimiento", notch en vivo).
+    @MainActor private func currentStyle() -> GStyle {
+        let model = AppModel.shared
+        let theme = model.themeStyle
+        let material: OrbexMaterial = (theme.glassAllowed || theme.id != .liquidGlass)
+            ? OrbexMaterial(theme: theme.id) : .solid
+        let compactW = state.notchWidth + 160          // igual que `islandSize(.compact)`
+        return GStyle(tint: CharacterBrain.shared.tint.rgb,
+                      material: material,
+                      reduce: model.effectiveReduceMotion,
+                      compactX: GCX - compactW / 2 + GCOMPACT_X,
+                      notchH: state.notchHeight)
     }
 
     private func fireGreetComplete() {
@@ -601,20 +600,25 @@ struct GreetingCanvasView: View {
     }
 
     private func scheduleWorks() {
-        func schedule(_ delay: Double, _ block: @escaping () -> Void) -> DispatchWorkItem {
-            let item = DispatchWorkItem(block: block)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
-            return item
+        cancelWorks()
+        var list: [DispatchWorkItem] = []
+        // Sonidos atados a la coreografía: aterriza, saluda, se asoman los minis.
+        let cues: [(delay: Double, name: String)] = [(GT.land1, "pop"), (GT.wave0, "greet"), (GT.minis0, "blip")]
+        for cue in cues {
+            let name = cue.name
+            let item = DispatchWorkItem { MainActor.assumeIsolated { SoundEngine.shared.play(name) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + cue.delay, execute: item)
+            list.append(item)
         }
-        soundWork1 = schedule(GT.pop0)  { SoundEngine.shared.play("greet") }
-        soundWork2 = schedule(GT.badge) { SoundEngine.shared.play("blip")  }
-        // doneWork is a safety fallback; normal path fires via .onChange
-        doneWork = schedule(GT.end + 0.05) { fireGreetComplete() }
+        // Respaldo: el camino normal es el `onChange` de arriba.
+        let done = DispatchWorkItem { MainActor.assumeIsolated { fireGreetComplete() } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + GT.end + 0.05, execute: done)
+        list.append(done)
+        works = list
     }
 
     private func cancelWorks() {
-        soundWork1?.cancel(); soundWork1 = nil
-        soundWork2?.cancel(); soundWork2 = nil
-        doneWork?.cancel();   doneWork = nil
+        works.forEach { $0.cancel() }
+        works = []
     }
 }
