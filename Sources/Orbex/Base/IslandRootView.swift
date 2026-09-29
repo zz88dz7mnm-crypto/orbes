@@ -38,7 +38,7 @@ struct IslandContainer: View {
     private var chatPromptHeight: CGFloat {
         let base: CGFloat = 240
         let perMsg: CGFloat = 40
-        return min(300, base + CGFloat(state.chatHistory.count) * perMsg)
+        return min(300, base + CGFloat(state.chatMessageCount) * perMsg)
     }
 
     /// Pixels the content must be pushed down to clear the concave ear transparent area.
@@ -143,7 +143,7 @@ struct IslandContainer: View {
                 islandHeight = newView == .prompt ? chatPromptHeight : h
             }
         }
-        .onChange(of: state.chatHistory.count) { _, _ in
+        .onChange(of: state.chatMessageCount) { _, _ in
             guard state.mode == .expanded, state.view == .prompt else { return }
             withAnimation(openSpring) { islandHeight = chatPromptHeight }
         }

@@ -188,8 +188,6 @@ final class AppState: ObservableObject {
     /// Cantidad de mensajes del chat, espejada desde `AssistantStore.shared.messages` para que las vistas
     /// de la isla (alto del chat) se re-evalúen cuando cambia la conversación.
     @Published private(set) var chatMessageCount: Int = 0
-    /// Compatibilidad de solo lectura (usar `chatMessageCount`).
-    var chatHistory: [ChatMessage] { AssistantStore.shared.messages }
     private var chatCountSub: AnyCancellable?
 
     // Pending approval request from Claude Code hook
