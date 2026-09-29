@@ -110,11 +110,13 @@ final class AssistantStore: ObservableObject {
 
     // MARK: - Enviar
 
-    func sendDraft() {
+    /// `context`: lo que ORBEX ve alrededor (ventana activa, etc.). Va a Claude como DATO envuelto
+    /// (`ClaudeArguments.composePrompt` lo marca como no confiable), nunca como instrucciones.
+    func sendDraft(context: ClaudeAttachment? = nil) {
         let text = draft
         guard canSend(text) else { return }
         draft = ""
-        send(text)
+        send(text, context: context)
     }
 
     func canSend(_ text: String) -> Bool {
@@ -123,19 +125,40 @@ final class AssistantStore: ObservableObject {
     }
 
     /// Primero ORBEX (comandos locales); si no es un comando, Claude.
-    func send(_ raw: String) {
+    func send(_ raw: String, context: ClaudeAttachment? = nil) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canSend(text) else { return }
         lastError = nil
         let attachments = pendingAttachments
         pendingAttachments = []
-        append(ChatMessage(role: .user, text: text,
-                           attachments: attachments.map { ChatAttachmentInfo(name: $0.name, bytes: $0.bytes) }))
+        // Los comandos de ORBEX van primero (el contexto de ventana no les cambia nada).
         if attachments.isEmpty, let command = CommandParser.parse(text) {
+            append(ChatMessage(role: .user, text: text))
             runCommand(command)
-        } else {
-            askClaude(text, attachments: attachments)
+            return
         }
+        let all = attachments + (context.map { [$0] } ?? [])
+        append(ChatMessage(role: .user, text: text,
+                           attachments: all.map { ChatAttachmentInfo(name: $0.name, bytes: $0.bytes) }))
+        askClaude(text, attachments: all)
+    }
+
+    /// Contexto de la ventana activa como adjunto de datos (título, app, URL). Solo texto, nada se ejecuta.
+    static func windowContext(app: String, title: String, url: String?) -> ClaudeAttachment {
+        var lines = ["App: \(app)", "Título de la ventana: \(title)"]
+        if let url, !url.isEmpty { lines.append("URL: \(url)") }
+        return ClaudeAttachment(name: "Ventana · \(app)", content: lines.joined(separator: "\n"))
+    }
+
+    /// Hay una respuesta de Claude en curso usando herramientas (para la vista "buscando").
+    var runningToolTitle: String? {
+        guard isStreaming else { return nil }
+        return messages.last(where: { $0.isStreaming })?.toolChips.last(where: { $0.state == .running })?.title
+    }
+
+    /// Última respuesta terminada de Claude (para la vista de resultado corto).
+    var lastReply: ChatMessage? {
+        messages.last { $0.role == .assistant && !$0.isStreaming && !$0.text.isEmpty }
     }
 
     func retry() {

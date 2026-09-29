@@ -4,6 +4,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import OrbexCore
 
 // Integration pills — always-present, never purged
 extension AgentTask {
@@ -183,8 +184,13 @@ final class AppState: ObservableObject {
     @Published var notionLoaded: Bool = false
     @Published var notionError: String? = nil
 
-    // Chat conversation history
-    @Published var chatHistory: [IslandChatMessage] = []
+    // Chat: la conversación vive en `AssistantStore` (streaming, comandos, adjuntos, memoria).
+    /// Cantidad de mensajes del chat, espejada desde `AssistantStore.shared.messages` para que las vistas
+    /// de la isla (alto del chat) se re-evalúen cuando cambia la conversación.
+    @Published private(set) var chatMessageCount: Int = 0
+    /// Compatibilidad de solo lectura (usar `chatMessageCount`).
+    var chatHistory: [ChatMessage] { AssistantStore.shared.messages }
+    private var chatCountSub: AnyCancellable?
 
     // Pending approval request from Claude Code hook
     @Published var pendingApproval: ApprovalInfo? = nil
@@ -221,6 +227,14 @@ final class AppState: ObservableObject {
 
         // Always load integration pills
         loadIntegrationTasks()
+
+        // Espejo del largo del chat (la conversación la maneja AssistantStore).
+        chatCountSub = AssistantStore.shared.$messages
+            .map(\.count)
+            .removeDuplicates()
+            .sink { [weak self] n in
+                MainActor.assumeIsolated { self?.chatMessageCount = n }
+            }
     }
 
     // MARK: - Computed
@@ -448,12 +462,4 @@ struct NotionPage: Identifiable {
     }
 }
 
-// MARK: - Chat
 
-enum IslandChatRole { case user, assistant }
-
-struct IslandChatMessage: Identifiable {
-    let id = UUID()
-    let role: IslandChatRole
-    let content: String
-}
