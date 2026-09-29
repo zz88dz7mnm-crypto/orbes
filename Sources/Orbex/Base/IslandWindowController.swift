@@ -25,12 +25,13 @@ final class IslandWindowController: NSWindowController {
     // Finished-pin timer
     private var finishedPinTimer: DispatchWorkItem?
 
-    // Bot-head hover (love emote — mirrors prototype botHover())
+    // Mouse encima de ORBEX: quieto un ratito = caricia (rubor, corazoncitos, ronroneo).
     private var hoverTimer: DispatchWorkItem?
-    private var botHoverTimer: DispatchWorkItem?
     private var botHovering: Bool = false
-    private var lastLoveTime: Double = 0
     private var botHoverStartPos: CGPoint = .zero
+    private var botHoverLastMove: Double = 0
+    private var petting: Bool = false
+    private var lastPetSound: Double = -10
 
     // Window attach drag (M8)
     private var attachDragStart: NSPoint? = nil
@@ -247,20 +248,13 @@ final class IslandWindowController: NSWindowController {
         }
         wasInIsland = inIsland
 
-        // Bot-head hover (love emote)
-        let overBot = state.mode == .expanded && state.stateOverride == nil && isBotHit(local)
-        if overBot && !botHovering { botHoverIn(mousePos: NSEvent.mouseLocation) }
+        // Mouse encima de ORBEX (vista abierta): quieto = caricia
+        let overBot = state.mode == .expanded && state.stateOverride == nil
+            && !inAttachDrag && attachDragStart == nil && isBotHit(local)
+        if overBot && !botHovering { botHoverIn(mousePos: mouse) }
         if !overBot && botHovering { botHoverOut() }
         botHovering = overBot
-        if botHovering {
-            let m = NSEvent.mouseLocation
-            let dist = hypot(m.x - botHoverStartPos.x, m.y - botHoverStartPos.y)
-            if dist > 40 {
-                botHoverStartPos = m
-                botHoverTimer?.cancel()
-                scheduleLoveTimer()
-            }
-        }
+        if botHovering { updatePetting(mouse: mouse) }
 
         // Ghost ORBEX follows cursor + window highlight during drag (60 Hz, no throttle)
         if inAttachDrag {
@@ -271,34 +265,51 @@ final class IslandWindowController: NSWindowController {
 
     private var lastMouse: CGPoint = .zero
 
-    // MARK: - Bot-head hover (love emote — mirrors prototype botHover())
+    // MARK: - Caricia (mouse quieto encima de ORBEX)
 
     private func botHoverIn(mousePos: CGPoint) {
         guard state.mode == .expanded, state.stateOverride == nil else { return }
-        guard CACurrentMediaTime() - lastLoveTime > 6 else { return }
         botHoverStartPos = mousePos
+        botHoverLastMove = CACurrentMediaTime()
         NotificationCenter.default.post(name: .botBlink, object: nil)
         NotificationCenter.default.post(name: .botSetTgEs, object: CGFloat(1.08))
         SoundEngine.shared.play("hover")
-        scheduleLoveTimer()
     }
 
     private func botHoverOut() {
-        botHoverTimer?.cancel()
+        setPetting(false)
         NotificationCenter.default.post(name: .botSetTgEs, object: CGFloat(1))
     }
 
-    private func scheduleLoveTimer() {
-        botHoverTimer?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            guard let self, self.botHovering, self.state.stateOverride == nil else { return }
-            guard CACurrentMediaTime() - self.lastLoveTime > 6 else { return }
-            self.lastLoveTime = CACurrentMediaTime()
-            NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.love)
-            SoundEngine.shared.play("love")
+    /// Quieto 0,8 s encima → caricia; si el mouse se va más de 18 pt, se corta.
+    private func updatePetting(mouse m: CGPoint) {
+        let now = CACurrentMediaTime()
+        let d = hypot(m.x - botHoverStartPos.x, m.y - botHoverStartPos.y)
+        if petting {
+            if d > 18 {
+                setPetting(false)
+                botHoverStartPos = m
+                botHoverLastMove = now
+            }
+        } else if d > 4 {
+            botHoverStartPos = m
+            botHoverLastMove = now
+        } else if now - botHoverLastMove > 0.8 {
+            setPetting(true)
         }
-        botHoverTimer = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.9, execute: item)
+    }
+
+    private func setPetting(_ on: Bool) {
+        guard on != petting else { return }
+        petting = on
+        NotificationCenter.default.post(name: .botPet, object: on)
+        if on {
+            let now = CACurrentMediaTime()
+            if now - lastPetSound > 5 {
+                lastPetSound = now
+                SoundEngine.shared.play("love")
+            }
+        }
     }
 
     private func scheduleHover(after delay: TimeInterval, action: @escaping () -> Void) {
@@ -385,7 +396,7 @@ final class IslandWindowController: NSWindowController {
             self?.collapse()
         }
 
-        // .botDizzy — posted by BotEngine.slap() on 3rd hit; show confused view + recover after 3.3s
+        // .botDizzy — lo manda BotEngine.tickle() al tercer clic rápido; show confused view + recover after 3.3s
         NotificationCenter.default.addObserver(forName: .botDizzy, object: nil, queue: .main) { [weak self] _ in
             self?.handleDizzy()
         }
@@ -399,12 +410,12 @@ final class IslandWindowController: NSWindowController {
                 guard self.wasInIsland else { return }
                 self.pendingIslandClick = true
                 self.hoverTimer?.cancel()
-                self.botHoverTimer?.cancel()
+                self.setPetting(false)
                 self.botHovering = false
                 // Drag only starts when clicking directly on the bot head
                 guard self.isBotHit(event.locationInWindow) else { return }
                 self.attachDragStart = NSEvent.mouseLocation
-                // Post slap only when expanded
+                // Cosquillas solo en la vista abierta (tres clics rápidos = mareo)
                 guard self.state.mode == .expanded else { return }
                 NotificationCenter.default.post(name: .triggerSlap, object: nil)
             }
@@ -713,7 +724,7 @@ final class IslandWindowController: NSWindowController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 5.2, execute: item)
     }
 
-    // MARK: - Dizzy recovery (triggered by BotEngine.slap via .botDizzy)
+    // MARK: - Dizzy recovery (BotEngine.tickle → .botDizzy)
 
     private func handleDizzy() {
         let prevView = state.view
@@ -733,7 +744,7 @@ final class IslandWindowController: NSWindowController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.3, execute: recovery)
     }
 
-    // MARK: - Bot hit test (for slap trigger)
+    // MARK: - Bot hit test (cosquillas, caricia, arrastre)
 
     private func isBotHit(_ windowPoint: CGPoint) -> Bool {
         let s = AppState.shared
@@ -824,7 +835,8 @@ struct GhostBotView: View {
     @State private var scale: CGFloat = 0.35
 
     var body: some View {
-        BotCanvasView(state: AppState.shared)
+        // Globo que patalea mientras se lo arrastra.
+        BotCanvasView(state: AppState.shared, carried: true)
             .frame(width: canvasSize, height: canvasSize)
             .scaleEffect(scale)
             .onAppear {
@@ -840,6 +852,8 @@ struct GhostBotView: View {
 extension Notification.Name {
     static let triggerEmote     = Notification.Name("orbex.island.triggerEmote")
     static let triggerSlap      = Notification.Name("orbex.island.triggerSlap")
+    /// Caricia: `object` = `Bool` (empieza / termina).
+    static let botPet           = Notification.Name("orbex.island.botPet")
     static let botDizzy         = Notification.Name("orbex.island.botDizzy")
     static let botGreet         = Notification.Name("orbex.island.botGreet")
     static let botBlink         = Notification.Name("orbex.island.botBlink")
