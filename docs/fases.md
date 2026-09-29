@@ -6,7 +6,7 @@ Resumen del §15 del informe. El avance real se sigue en [`PLAN.md`](PLAN.md).
 |---|---|---|
 | **0 — Preparación** | Repo, docs, estructura, referencias | Todo en `docs/` y `design/` |
 | **1 — Núcleo visual** | Isla con estados y morph, ORBEX con vida, Liquid Glass, sonidos base, Configuración básica, `.dmg` + ícono + acceso directo + iniciar con la Mac | Ver abajo |
-| **2 — Asistente y utilidades** | Panel del asistente (Claude/OpenAI por API), abrir apps, notas, temporizadores y cronómetros | Responde con streaming; timers persisten; notas se guardan |
+| **2 — Asistente y utilidades** | Panel del asistente (solo Claude vía `claude` local), abrir apps, notas, temporizadores y cronómetros | Responde con streaming; timers persisten; notas se guardan |
 | **3 — Sesiones de código** | Hooks de Claude Code, aprobaciones, saltar a terminal; Codex si es viable | Aprobar/negar funciona y Claude Code nunca se bloquea |
 | **4 — Reloj y memoria** | Reloj flotante, esferas, acciones programadas, memoria | Morph notch↔reloj fluido; acciones a hora exacta |
 | **5 — Temas** | Y2K metálico/Winamp y macOS limpio, sistema de skins | Cambio de tema en vivo con sonidos propios |
