@@ -39,6 +39,6 @@ swift test                  # pruebas de OrbexCore
     NUNCA sus assets: nombres Coucou/Mochi, el personaje Mochi (look, expresiones, animaciones), íconos,
     sonidos, imágenes. El personaje es ORBEX, los sonidos son sintetizados, el ícono es propio.
 14. Rendimiento: casi 0 % de CPU con la isla oculta; respetar Modo de bajo consumo y "reducir movimiento".
-15. Compatibilidad: el código tiene que compilar con Xcode 15.3+ (Swift 5.10). Las APIs nuevas (Liquid
-    Glass de macOS 26) van detrás de `#if compiler(>=6.2)` + `if #available(macOS 26, *)`.
+15. Compatibilidad: macOS 15+ y Xcode 16+ (compilador Swift 6, paquete en modo Swift 5). Las APIs nuevas
+    (Liquid Glass de macOS 26) van detrás de `#if compiler(>=6.2)` + `if #available(macOS 26, *)`.
 16. Al terminar cada fase: checklist de criterios de aceptación con [ ]/[x] y qué falta probar.

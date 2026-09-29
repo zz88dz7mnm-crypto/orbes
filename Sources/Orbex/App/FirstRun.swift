@@ -214,8 +214,8 @@ struct FirstRunView: View {
         }
         OrbexBus.react(.celebrate)
         OrbexBus.play(.sessionDone)
-        // Mostrar dónde vive ORBEX.
-        model.handle(.flash(duration: 3))
+        // Mostrar dónde vive ORBEX: sale del notch y saluda.
+        OrbexBridge.shared.island?.fsm.launch()
         onDone()
     }
 }

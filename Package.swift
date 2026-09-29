@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Orbex",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS("15.0")],
     products: [
         .executable(name: "Orbex", targets: ["Orbex"]),
         .executable(name: "orbex-hook", targets: ["orbex-hook"]),
@@ -27,6 +27,8 @@ let package = Package(
                 .linkedFramework("Accelerate"),
                 .linkedFramework("CoreMedia"),
                 .linkedFramework("UserNotifications"),
+                .linkedFramework("ApplicationServices"),
+                .linkedFramework("QuartzCore"),
             ]
         ),
         // Relé mínimo de hooks (Claude Code / Codex) → socket Unix de la app.

@@ -20,6 +20,9 @@ final class IslandFlowMachine {
     /// Fired on every transition: (from, to)
     var onTransition: ((State, State) -> Void)?
 
+    /// ORBEX: si devuelve `true`, la isla abierta no se cierra sola (alertas que esperan una decisión).
+    var isPinned: @MainActor () -> Bool = { false }
+
     /// home → petit delay (seconds). Override for debug.
     var homeToPetitDelay: TimeInterval = 15
     /// petit → hidden delay (seconds). Override for debug.
@@ -102,6 +105,30 @@ final class IslandFlowMachine {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 
+    // MARK: – Entradas de ORBEX (menú, atajos, avisos, alertas)
+
+    /// La isla se abrió por otro camino (menú, atajo, alerta, arrastre): pasa a "home" SIN volver a
+    /// expandir (la vista ya la eligió quien abrió) y arma el cierre automático si el mouse no está encima.
+    /// Sin esto el FSM quedaba en "hidden"/"petit" con la isla abierta y los clics dejaban de responder.
+    func syncOpened(mouseInside: Bool) {
+        guard state == .hidden || state == .petit else { return }
+        cancelTimers()
+        state = .home
+        if !mouseInside { scheduleHomeCollapse() }
+    }
+
+    /// Cerrar la isla abierta ya (Esc, botón OK, clic afuera): pasa a compacta.
+    func collapseToPetit() {
+        cancelTimers()
+        transition(to: .petit)
+    }
+
+    /// Esconder del todo ya (p. ej. al pasar a modo reloj).
+    func hide() {
+        cancelTimers()
+        transition(to: .hidden)
+    }
+
     /// Non-alert work event: show compact from hidden (HookServer reveal)
     func reveal() {
         guard state == .hidden else { return }
@@ -126,6 +153,8 @@ final class IslandFlowMachine {
         homeCollapseWork?.cancel()
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.state == .home else { return }
+            // Alerta fija (permiso, pregunta): se vuelve a mirar más tarde en vez de cerrar.
+            if self.isPinned() { self.scheduleHomeCollapse(); return }
             self.transition(to: .petit)
         }
         homeCollapseWork = item

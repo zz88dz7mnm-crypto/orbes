@@ -36,6 +36,31 @@ final class SoundEngine {
 
     private init() {}
 
+    // MARK: - Nombres de eventos de la isla (base Coucou)
+
+    /// Silencio general de la isla (además del ajuste "Sonido" de `AppState`).
+    var enabled = true
+    /// Volumen de la isla en la escala de la base (0–0,2). El volumen real sale de los ajustes de ORBEX.
+    var volume: Float = 0.12
+
+    /// Reproduce un evento por nombre ("peek", "open", "slap", "gulp"…). Los 28 nombres de la isla se
+    /// traducen a sonidos sintetizados de ORBEX (nunca se usan los WAV de Coucou).
+    func play(_ name: String) {
+        guard enabled, AppState.shared.soundEnabled, let s = Self.eventSounds[name] else { return }
+        play(s)
+    }
+
+    /// Nombre de evento de la isla → sonido de ORBEX (provisorio: la etapa de sonidos le da uno propio a cada uno).
+    static let eventSounds: [String: OrbexSound] = [
+        "peek": .peek, "open": .open, "close": .close, "hover": .rareBlink, "blip": .tap,
+        "slap": .tap, "annoyed": .annoyed, "dizzy": .dizzy, "greet": .greet, "work": .timerStart,
+        "finish": .sessionDone, "error": .error, "approval": .needsYou, "question": .surprise,
+        "approve": .permissionGranted, "gulp": .fileSwallowed, "tick": .tick, "send": .answered,
+        "love": .wake, "pop": .lap, "proud": .sessionDone, "wink": .rareBlink, "yawn": .sleep,
+        "attach": .noteSaved, "think": .thinking, "search": .thinking, "rate": .permissionDenied,
+        "sleep": .sleep,
+    ]
+
     // MARK: - API
 
     /// Reproduce un sonido respetando volumen, horario silencioso, silencios por evento y ducking.

@@ -3,7 +3,9 @@ import SwiftUI
 import CoreGraphics
 import OrbexCore
 
-/// Estado central de la app: ajustes, estado de la isla, tema, actividad de los módulos.
+/// Estado central de ORBEX: ajustes, tema, personaje, actividad de los módulos y bus.
+/// La isla en sí (ventana, estados, vistas) vive en la base de Coucou (`AppState` + `IslandWindowController`);
+/// `OrbexBridge` traduce entre los dos mundos y mantiene `islandState` como espejo para los módulos.
 @MainActor
 final class AppModel: ObservableObject {
     static let shared = AppModel()
@@ -20,11 +22,10 @@ final class AppModel: ObservableObject {
 
     // MARK: - Isla
 
+    /// Espejo del estado de la isla (lo actualiza `OrbexBridge` al cambiar el modo o la vista).
     @Published private(set) var islandState: IslandState = .hidden
-    @Published var page: IslandPage = .home
     @Published private(set) var notch = NotchMetrics(width: 185, height: 32, isHardware: false)
     @Published private(set) var screenSize = CGSize(width: 1440, height: 900)
-    @Published private(set) var toast: OrbexBus.Toast?
     /// Línea corta que se muestra debajo del notch en "trabajando" / "te necesita".
     @Published var statusLine: String = ""
     /// Fuentes que piden atención (para el texto de "te necesita").
@@ -42,24 +43,20 @@ final class AppModel: ObservableObject {
         didSet { if hasTimerRunning != oldValue { updateMood() } }
     }
 
-    let machine: IslandStateMachine
     let brain = CharacterBrain.shared
 
     private var activity: [String: (working: Bool, attention: Bool)] = [:]
     private var tintRequests: [String: OrbexTint] = [:]
     private var tintOrder: [String] = []
-    private var isSleepy = false
-    private var toastWork: DispatchWorkItem?
+    private(set) var isSleepy = false
+    private var islandMode: IslandMode = .hidden
+    private var islandView: IslandView = .overview
     private var observers: [NSObjectProtocol] = []
     private var sleepTimer: Timer?
 
     private init() {
         let loaded = SettingsStore.load()
         settings = loaded
-        machine = IslandStateMachine(config: .init(openAutoClose: loaded.openAutoCloseSeconds, hoverPeeks: loaded.hoverPeeks))
-        machine.onChange = { [weak self] old, new in
-            MainActor.assumeIsolated { self?.stateChanged(from: old, to: new) }
-        }
         systemReduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         systemReduceTransparency = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
         lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
@@ -109,66 +106,49 @@ final class AppModel: ObservableObject {
 
     // MARK: - Entradas
 
-    func handle(_ event: IslandEvent) {
-        machine.handle(event)
-    }
-
-    func tick() {
-        machine.tick()
-    }
-
     func updatePlacement(notch: NotchMetrics, screenSize: CGSize) {
         if self.notch != notch { self.notch = notch }
         if self.screenSize != screenSize { self.screenSize = screenSize }
     }
 
-    /// Clic sobre la isla (fondo). Sobre ORBEX la vista llama a `brain.tap()` además.
-    func islandClicked() {
-        machine.handle(.click)
+    /// Asoma la isla unos segundos (para mostrar dónde vive ORBEX o avisar algo chiquito).
+    func flash() {
+        OrbexBridge.shared.reveal()
     }
 
+    /// Abre la isla en una página de ORBEX.
     func show(page: IslandPage) {
-        self.page = page
-        machine.handle(.open)
-    }
-
-    func showToast(_ t: OrbexBus.Toast) {
-        withAnimation(themeStyle.softSpring) { toast = t }
-        machine.handle(.flash(duration: 2.6))
-        toastWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                withAnimation(self.themeStyle.softSpring) { self.toast = nil }
-            }
-        }
-        toastWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6, execute: work)
+        OrbexBridge.shared.show(page: page)
     }
 
     // MARK: - Cambios de estado
 
-    private func stateChanged(from old: IslandState, to new: IslandState) {
-        withAnimation(themeStyle.spring) { islandState = new }
-        updateMood()
+    /// Lo llama `OrbexBridge` cada vez que la isla cambia de modo o de vista.
+    func islandDidChange(mode: IslandMode, view: IslandView) {
+        islandMode = mode
+        islandView = view
+        refreshIslandState()
+    }
 
-        switch (old, new) {
-        case (_, .peek) where old == .hidden:
-            OrbexBus.play(.peek)
-        case (_, .open), (_, .assistant):
-            if !old.isExpanded { OrbexBus.play(.open) }
-        case (_, .clock):
-            OrbexBus.play(.toClock)
-        default:
-            if old.isExpanded && !new.isExpanded { OrbexBus.play(.close) }
-            if old == .clock { OrbexBus.play(.toNotch) }
+    private func refreshIslandState() {
+        let working = activity.values.contains { $0.working }
+        let attention = activity.values.contains { $0.attention }
+        let new: IslandState
+        switch islandMode {
+        case .expanded:
+            new = islandView == .prompt ? .assistant : .open
+        case .compact:
+            new = attention ? .needsYou : (working ? .active : .peek)
+        case .hidden:
+            if ClockController.shared.isVisible { new = .clock }
+            else if isSleepy { new = .sleeping }
+            else if attention { new = .needsYou }
+            else if working { new = .active }
+            else { new = .hidden }
         }
-        if new == .needsYou && old != .needsYou {
-            OrbexBus.play(.needsYou)
-        }
-        if new == .sleeping { OrbexBus.play(.sleep) }
-        if old == .sleeping && new != .sleeping && new != .peek { OrbexBus.play(.wake) }
-        if !new.isExpanded { page = .home }
+        guard new != islandState else { return }
+        islandState = new
+        updateMood()
         NotificationCenter.default.post(name: .orbexIslandStateChanged, object: nil)
     }
 
@@ -181,12 +161,17 @@ final class AppModel: ObservableObject {
     private func recomputeContext() {
         let working = activity.values.contains { $0.working }
         let attention = activity.values.contains { $0.attention }
+        let hadAttention = !attentionSources.isEmpty
         attentionSources = activity.filter { $0.value.attention }.map { $0.key }.sorted()
-        machine.handle(.contextChanged(IslandContext(isWorking: working, needsAttention: attention, isSleepy: isSleepy)))
+        OrbexBridge.shared.setAmbient(working: working, attention: attention, sleepy: isSleepy)
+        if attention && !hadAttention {
+            OrbexBus.play(.needsYou)
+            OrbexBridge.shared.reveal()
+        }
+        refreshIslandState()
     }
 
     private func applySettings(old: OrbexSettings) {
-        machine.config = .init(openAutoClose: settings.openAutoCloseSeconds, hoverPeeks: settings.hoverPeeks)
         brain.lifeLevel = settings.lifeLevel
         brain.reduceMotion = effectiveReduceMotion
         refreshTint()
@@ -227,10 +212,15 @@ final class AppModel: ObservableObject {
         let hour = Calendar.current.component(.hour, from: Date())
         let idle = Self.secondsSinceLastInput()
         let sleepy = settings.sleep.shouldSleep(hour: hour, idleSeconds: idle) && idle > 60
-        if sleepy != isSleepy {
-            isSleepy = sleepy
-            recomputeContext()
-        }
+        setSleepy(sleepy)
+    }
+
+    /// Dormir / despertar (también lo usa "Probar estados" del menú).
+    func setSleepy(_ sleepy: Bool) {
+        guard sleepy != isSleepy else { return }
+        isSleepy = sleepy
+        OrbexBus.play(sleepy ? .sleep : .wake)
+        recomputeContext()
     }
 
     static func secondsSinceLastInput() -> Double {
@@ -306,13 +296,14 @@ final class AppModel: ObservableObject {
                 self.refreshTint()
             }
         })
-        observers.append(nc.addObserver(forName: OrbexBus.toast, object: nil, queue: .main) { [weak self] note in
+        observers.append(nc.addObserver(forName: OrbexBus.toast, object: nil, queue: .main) { note in
             guard let t = note.object as? OrbexBus.Toast else { return }
-            MainActor.assumeIsolated { self?.showToast(t) }
+            MainActor.assumeIsolated { OrbexBridge.shared.showNote(t.text, symbol: t.symbol) }
         })
     }
 
     func react(_ r: OrbexReaction) {
+        OrbexBridge.shared.react(r)
         switch r {
         case .celebrate: brain.celebrate()
         case .worry: brain.worry()
@@ -323,34 +314,13 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Archivos soltados sobre la isla: ORBEX los "traga" y abre el asistente con el archivo adjunto.
-    func receiveDroppedFiles(_ providers: [NSItemProvider]) -> Bool {
-        let fileType = "public.file-url"
-        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(fileType) }) else {
-            return false
-        }
-        _ = provider.loadObject(ofClass: URL.self) { url, _ in
-            guard let url else { return }
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    let model = AppModel.shared
-                    OrbexBus.play(.fileSwallowed)
-                    model.brain.show(.happy, for: 1.5)
-                    if model.islandState != .assistant { model.machine.handle(.toggleAssistant) }
-                    _ = AssistantStore.shared.attach(fileURL: url)
-                }
-            }
-        }
-        return true
-    }
-
     /// Acciones globales (menú, atajos, bus).
     func perform(_ action: String) {
         switch action {
-        case "assistant": machine.handle(.toggleAssistant)
-        case "clock": machine.handle(.toggleClock)
-        case "open": machine.handle(.open)
-        case "close": machine.handle(.close)
+        case "assistant": OrbexBridge.shared.toggleAssistant()
+        case "clock": OrbexBridge.shared.toggleClock()
+        case "open": OrbexBridge.shared.openIsland()
+        case "close": OrbexBridge.shared.close()
         case "settings": NotificationCenter.default.post(name: .orbexOpenSettings, object: nil)
         default: break
         }

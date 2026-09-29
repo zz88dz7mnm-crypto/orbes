@@ -6,6 +6,8 @@ import OrbexCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    /// La isla (base Coucou): ventana, estados, vistas.
+    private(set) var islandController: IslandWindowController?
     private let model = AppModel.shared
     private var demoWorking = false
     private var demoAttention = false
@@ -14,26 +16,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Si un cliente cierra el socket antes de tiempo, que no se caiga la app.
         signal(SIGPIPE, SIG_IGN)
+        // Leer las claves del Keychain UNA vez, en el hilo principal, antes de que un servicio las pida.
+        _ = KeychainStore.shared
         NSApp.setActivationPolicy(.accessory)
 
         setupStatusItem()
-        IslandController.shared.start()
+        setupIsland()
         OrbexHotKeys.installDefaults()
         SettingsWindowController.shared.startObserving()
         startPhase2Modules()
-        SessionsStore.shared.start()   // Fase 3: hooks de Claude Code / Codex
-        SchedulerStore.shared.start()  // Fase 4: recordatorios y acciones a hora puntual
-        _ = MemoryStore.shared         // Fase 4: memoria local (contexto del asistente)
-        MusicStore.shared.start()      // Fase 6: Spotify / Música
-        IntegrationsHub.shared.start() // Fase 6: GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com
+        SessionsStore.shared.start()   // hooks de Claude Code / Codex (socket Unix + orbex-hook)
+        SessionsBridge.shared.start()  // permisos pendientes → vista de permiso de la isla
+        SchedulerStore.shared.start()  // recordatorios y acciones a hora puntual
+        _ = MemoryStore.shared         // memoria local (contexto del asistente)
+        MusicStore.shared.start()      // Spotify / Música
+        startServices()                // GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com
         if UserDefaults.standard.bool(forKey: "orbex.music.beatDetection") {
             Task { @MainActor in _ = await BeatDetector.shared.start() }
-        }
-        // Las integraciones consultan más seguido solo cuando la isla está abierta.
-        NotificationCenter.default.addObserver(forName: .orbexIslandStateChanged, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated {
-                IntegrationsHub.shared.setVisible(AppModel.shared.islandState.isExpanded)
-            }
         }
 
         // Aplicar ajustes que dependen del sistema (por si cambiaron fuera de la app).
@@ -44,10 +43,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !model.settings.firstRunDone {
             FirstRunWindowController.shared.showIfNeeded()
         } else if model.settings.greetOnLaunch {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                MainActor.assumeIsolated { self.greet() }
-            }
+            // Saludo de bienvenida: ORBEX sale del notch y saluda (vista `greeting` de la isla).
+            islandController?.fsm.launch()
+            OrbexBus.play(.greet)
         }
+    }
+
+    // MARK: - Isla
+
+    private func setupIsland() {
+        let controller = IslandWindowController()
+        islandController = controller
+        controller.showWindow(nil)
+        OrbexBridge.shared.attach(controller)
+        // "Configuración…" desde la vista de ajustes de la isla.
+        NotificationCenter.default.addObserver(forName: .openFullSettings, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { SettingsWindowController.shared.show() }
+        }
+    }
+
+    /// Servicios conectados: cada uno consulta solo si su clave está en el Keychain (si no, no hace nada).
+    private func startServices() {
+        N8nPoller.shared.start()
+        VercelPoller.shared.start()
+        ResendPoller.shared.start()
+        GithubPoller.shared.start()
+        StripePoller.shared.start()
+        CalcomPoller.shared.start()
+        NotionPoller.shared.start()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -67,12 +90,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
         _ = NotesStore.shared
         _ = AssistantStore.shared
-    }
-
-    private func greet() {
-        model.brain.greet()
-        OrbexBus.play(.greet)
-        model.handle(.flash(duration: 3))
     }
 
     // MARK: - Menú de la barra
@@ -136,13 +153,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func demoCelebrate() {
         OrbexBus.react(.celebrate)
         OrbexBus.play(.sessionDone)
-        model.handle(.flash(duration: 3))
+        model.flash()
     }
 
     @objc private func demoWorry() {
         OrbexBus.react(.worry)
         OrbexBus.play(.error)
-        model.handle(.flash(duration: 3))
+        model.flash()
     }
 
     @objc private func demoToast() {
@@ -150,12 +167,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func demoSleep() {
-        let sleeping = model.islandState == .sleeping
-        OrbexBus.setActivity(source: "demo-sleep", working: false, attention: false)
-        if sleeping {
-            model.handle(.contextChanged(IslandContext()))
-        } else {
-            model.handle(.contextChanged(IslandContext(isSleepy: true)))
-        }
+        model.setSleepy(!model.isSleepy)
     }
 }

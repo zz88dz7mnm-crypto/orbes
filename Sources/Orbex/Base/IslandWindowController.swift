@@ -152,6 +152,7 @@ final class IslandWindowController: NSWindowController {
     // MARK: - FSM wiring
 
     private func wireFSM() {
+        fsm.isPinned = { AppState.shared.isPinned }
         fsm.onTransition = { [weak self] from, to in
             guard let self else { return }
             switch to {
@@ -333,15 +334,24 @@ final class IslandWindowController: NSWindowController {
             setMode(.expanded)
         }
         state.lastActivity = .now
+        // ORBEX: abrir por otro camino (menú, atajo, alerta, arrastre) deja al FSM en sintonía.
+        fsm.syncOpened(mouseInside: wasInIsland)
     }
 
     func collapse() {
         state.isPinned = false
         finishedPinTimer?.cancel()
-        // Tell FSM we're going to compact (from home)
-        if fsm.state == .home { fsm.mouseLeft() }
+        // ORBEX: el FSM pasa a compacta YA (antes quedaba en "home" hasta 15 s y el clic no abría).
+        fsm.collapseToPetit()
         setMode(.compact)
         window?.resignKey()
+    }
+
+    /// Rectángulo del notch en pantalla (origen y destino del morph al reloj flotante).
+    func notchRectOnScreen() -> CGRect {
+        guard let screen = window?.screen ?? Self.notchScreen() ?? NSScreen.main else { return .zero }
+        let f = screen.frame
+        return CGRect(x: f.midX - notchW / 2, y: f.maxY - notchH, width: notchW, height: notchH)
     }
 
     // MARK: - Keyboard (Escape closes)
@@ -840,6 +850,7 @@ extension Notification.Name {
     static let islandCollapse   = Notification.Name("orbex.island.islandCollapse")
     static let openFullSettings = Notification.Name("orbex.island.openFullSettings")
     static let hookReveal       = Notification.Name("orbex.island.hookReveal")
+    static let hookExpand       = Notification.Name("orbex.island.hookExpand")
     // Greeting ↔ IslandWindowController
     static let greetComplete    = Notification.Name("orbex.island.greetComplete")
     static let greetingHover    = Notification.Name("orbex.island.greetingHover")

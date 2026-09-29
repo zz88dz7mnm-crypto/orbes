@@ -3,7 +3,7 @@
 #
 # Uso:  ./scripts/build-app.sh        (o: bash scripts/build-app.sh)
 #
-# Requisitos: macOS 14+ y las Xcode Command Line Tools (xcode-select --install) o Xcode.
+# Requisitos: macOS 15+ y las Xcode Command Line Tools (xcode-select --install) o Xcode.
 # Compatible con el bash 3.2 que trae macOS.
 #
 # Resultado:

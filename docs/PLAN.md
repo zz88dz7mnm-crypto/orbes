@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 7 %</h1>
+<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 20 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ETAPA_2-7%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 7 %" height="60">
+  <img src="https://img.shields.io/badge/ETAPA_2-20%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 20 %" height="60">
 </p>
 
-<h3 align="center">▓░░░░░░░░░░░░░░░░░░░ 7 / 100</h3>
+<h3 align="center">▓▓▓▓░░░░░░░░░░░░░░░░ 20 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: E1 · Clonar Coucou y unificar el cascarón (código copiado, resolviendo choques)</h3>
+<h3 align="center">🛠️ Ahora mismo: E2 · Personaje ORBEX en el motor (arrancando)</h3>
 
-<p align="center"><i>Última actualización: 29/09/2026 00:42 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 29/09/2026 00:50 UTC — se actualiza en cada push</i></p>
 
 <p align="center">Etapa 1 (ORBEX propio, fases 0–6): <b>100 % ✅</b> — versión previa en el commit <code>ab818d5</code></p>
 
@@ -29,10 +29,10 @@ Pesos: E0 3 % · E1 17 % · E2 20 % · E3 15 % · E4 5 % · E5 15 % · E6 10 % �
 
 ## E1 · Clonar Coucou y unificar el cascarón (17 %)
 - [x] Código de Coucou en `Sources/Orbex/Base/` con cabecera MIT; sin assets
-- [ ] Retirar duplicados de ORBEX y de Coucou; resolver 13 choques de nombres
-- [ ] Marca ORBEX (bundle, carpetas, logs, textos); `Package.swift` macOS 15
-- [ ] `AppDelegate` único + `OrbexBridge` + `SoundEngine.play(nombre)`
-- [ ] Sintaxis OK + chequeo de símbolos
+- [x] Retirar duplicados de ORBEX y de Coucou; resolver 13 choques de nombres
+- [x] Marca ORBEX (bundle, carpetas, logs, textos); `Package.swift` macOS 15
+- [x] `AppDelegate` único + `OrbexBridge` + `SoundEngine.play(nombre)`
+- [x] Sintaxis OK + chequeo de símbolos
 
 ## E2 · Personaje ORBEX en el motor (20 %)
 - [ ] `BotEngine` dibuja ORBEX (misma API), mini-ORBEX, portal de vidrio, bugs del motor arreglados
@@ -173,3 +173,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 29/09/2026 | 99 % | INSTALAR.md, checklist final, README |
 | 29/09/2026 | 100 % | Cierre: revisión automática OK; listo para descargar e instalar |
 | 29/09/2026 | E2: 3 % | E0: licencia, reglas, decisiones, contratos y plan de la Etapa 2 |
+| 29/09/2026 | E2: 20 % | E1 completa: cascarón de Coucou + puente con ORBEX |

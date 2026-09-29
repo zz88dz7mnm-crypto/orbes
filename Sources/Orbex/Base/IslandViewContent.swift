@@ -205,14 +205,14 @@ struct ApprovalView: View {
                 CodeBlock(text: approval?.command ?? approval?.tool ?? "…")
                 HStack(spacing: 8) {
                     SecondaryButton("Deny") {
-                        HookServer.shared.sendApprovalDecision("deny")
+                        SessionsBridge.shared.sendApprovalDecision("deny")
                     }
                     PrimaryButton("Allow") {
-                        HookServer.shared.sendApprovalDecision("allow")
+                        SessionsBridge.shared.sendApprovalDecision("allow")
                     }
                     if !state.alwaysAllow {
                         SecondaryButton("Always") {
-                            HookServer.shared.sendApprovalDecision("always")
+                            SessionsBridge.shared.sendApprovalDecision("always")
                         }
                     }
                 }
@@ -799,7 +799,7 @@ struct PromptView: View {
         state.chatHistory.append(IslandChatMessage(role: .user, content: query))
         state.stateOverride = .thinking
         Task {
-            await ClaudeService.shared.chat(query: query, context: state.promptContext, state: state)
+            await OrbexBridge.shared.askClaude(query, context: state.promptContext)
             await MainActor.run { focused = true }
         }
     }
@@ -963,14 +963,7 @@ struct IntegrationCardView: View {
     private var isConfigured: Bool {
         switch task.id {
         case "integration_claude":
-            let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
-            guard let data = try? Data(contentsOf: url),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let hooks = json["hooks"] as? [String: Any],
-                  let ss = hooks["SessionStart"] as? [[String: Any]] else { return false }
-            return ss.contains { ($0["hooks"] as? [[String: Any]])?.contains {
-                ($0["command"] as? String)?.contains("orbex-hook") == true
-            } ?? false }
+            return ClaudeHooksFile.isInstalled
         case "integration_resend":  return KeychainStore.shared.get("resend-api-key") != nil
         case "integration_n8n":     return KeychainStore.shared.get("n8n-api-key")    != nil
         case "integration_vercel":  return KeychainStore.shared.get("vercel-token")   != nil
@@ -2686,22 +2679,13 @@ struct SendButtonStyle: ButtonStyle {
 struct SettingsIslandView: View {
     @ObservedObject var state: AppState
 
-    private var claudeConnected: Bool {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/settings.json")
-        guard let data = try? Data(contentsOf: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let hooks = json["hooks"] as? [String: Any],
-              let ss = hooks["SessionStart"] as? [[String: Any]] else { return false }
-        return ss.contains { matcher in
-            (matcher["hooks"] as? [[String: Any]])?.contains {
-                ($0["command"] as? String)?.contains("orbex-hook") == true
-            } ?? false
-        }
-    }
+    /// Hooks de ORBEX instalados en `~/.claude/settings.json`.
+    private var claudeConnected: Bool { ClaudeHooksFile.isInstalled }
 
+    /// El asistente usa `claude` local (sin clave de API): ¿se encontró el programa?
     private var apiConnected: Bool {
-        KeychainStore.shared.get("anthropic-api-key") != nil
+        if case .found = AssistantStore.shared.cliStatus { return true }
+        return false
     }
 
     var body: some View {
@@ -2751,7 +2735,7 @@ struct SettingsIslandView: View {
                 // Connection status
                 HStack(spacing: 14) {
                     StatusBadge(label: "Claude Code", ok: claudeConnected)
-                    StatusBadge(label: "API", ok: apiConnected)
+                    StatusBadge(label: "claude", ok: apiConnected)
                     Spacer()
                     Button("Settings…") {
                         NotificationCenter.default.post(name: .openFullSettings, object: nil)

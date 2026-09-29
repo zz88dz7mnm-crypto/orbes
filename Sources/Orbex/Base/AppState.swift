@@ -9,7 +9,7 @@ import Combine
 extension AgentTask {
     /// All available integration pills. Claude is always active; others are opt-in (max 4).
     static let integrationAgents: [AgentTask] = [
-        AgentTask(id: "integration_claude",  name: "VS Code",   color: "#F5F6F8", state: .idle, steps: [], source: .claudeCode, isIntegration: true),
+        AgentTask(id: "integration_claude",  name: "Claude Code",   color: "#F5F6F8", state: .idle, steps: [], source: .claudeCode, isIntegration: true),
         AgentTask(id: "integration_resend",  name: "Resend",    color: "#22C55E", state: .idle, steps: [], source: .n8n, isIntegration: true),
         AgentTask(id: "integration_n8n",     name: "n8n",       color: "#F29B38", state: .idle, steps: [], source: .n8n, isIntegration: true),
         AgentTask(id: "integration_vercel",  name: "Vercel",    color: "#7C5CFF", state: .idle, steps: [], source: .n8n, isIntegration: true),
@@ -41,6 +41,10 @@ final class AppState: ObservableObject {
 
     // Bot state override
     @Published var stateOverride: BotState? = nil
+
+    /// ORBEX: estado "de fondo" que piden los módulos (timers, asistente, recordatorios, dormir) cuando
+    /// ninguna pastilla tiene algo más importante que mostrar. Lo pone `OrbexBridge`.
+    @Published var ambientState: BotState? = nil
 
     // Real notch dimensions (set by IslandWindowController on launch)
     var notchWidth:  CGFloat = IslandConst.notchWidth
@@ -92,6 +96,8 @@ final class AppState: ObservableObject {
 
     // Short note message (shown in NoteView)
     @Published var noteMessage: String? = nil
+    /// ORBEX: símbolo SF del aviso (p. ej. "timer", "note.text").
+    @Published var noteSymbol: String? = nil
 
     // Auto-close delay — persisted
     @Published var autoCloseInterval: TimeInterval = 15 {
@@ -224,7 +230,10 @@ final class AppState: ObservableObject {
     }
 
     var effectiveState: BotState {
-        stateOverride ?? focusTask?.state ?? .idle
+        if let o = stateOverride { return o }
+        let task = focusTask?.state ?? .idle
+        if task == .idle, let ambient = ambientState { return ambient }
+        return task
     }
 
     // MARK: - Task management
