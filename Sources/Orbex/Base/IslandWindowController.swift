@@ -17,7 +17,6 @@ final class IslandWindowController: NSWindowController {
 
     private var wasInIsland = false
     private var frameTimer: Timer?
-    private var keyMonitor: Any?
     private var viewSubscription: AnyCancellable?
 
     // Confused recovery timer (set by handleDizzy)
@@ -89,8 +88,13 @@ final class IslandWindowController: NSWindowController {
         screenTopY = place.topY
         panel.notchWidth = nW
         panel.notchHeight = nH
-        if AppState.shared.notchWidth != nW { AppState.shared.notchWidth = nW }
-        if AppState.shared.notchHeight != nH { AppState.shared.notchHeight = nH }
+        let app = AppState.shared
+        if app.notchWidth != nW || app.notchHeight != nH {
+            // No son @Published: avisar a SwiftUI para que la isla se redibuje con la medida nueva.
+            app.objectWillChange.send()
+            app.notchWidth = nW
+            app.notchHeight = nH
+        }
 
         let target = NSRect(x: (place.notchCenterX - Self.panelW / 2).rounded(),
                             y: place.topY - Self.panelH,

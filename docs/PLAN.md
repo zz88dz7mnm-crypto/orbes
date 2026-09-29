@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 77 %</h1>
+<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 85 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ETAPA_2-77%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 77 %" height="60">
+  <img src="https://img.shields.io/badge/ETAPA_2-85%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 85 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░ 77 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 85 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: E5-A chat y E6-B sistema (en paralelo)</h3>
+<h3 align="center">🛠️ Ahora mismo: E4-B español, E6-B sistema, E8 docs (en paralelo)</h3>
 
-<p align="center"><i>Última actualización: 29/09/2026 02:03 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 29/09/2026 02:04 UTC — se actualiza en cada push</i></p>
 
 <p align="center">Etapa 1 (ORBEX propio, fases 0–6): <b>100 % ✅</b> — versión previa en el commit <code>ab818d5</code></p>
 
@@ -175,3 +175,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 29/09/2026 | E2: 3 % | E0: licencia, reglas, decisiones, contratos y plan de la Etapa 2 |
 | 29/09/2026 | E2: 20 % | E1 completa: cascarón de Coucou + puente con ORBEX |
 | 29/09/2026 | E2: 40 % | E2 completa: ORBEX en el motor, saludo y portal |
+| 29/09/2026 | E2: 85 % | E5 completa: chat con claude y utilidades en la isla |
