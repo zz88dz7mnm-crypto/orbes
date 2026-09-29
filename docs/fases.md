@@ -80,7 +80,7 @@ Resumen del §15 del informe. El avance real se sigue en [`PLAN.md`](PLAN.md).
 
 ### E6 · Temas, reloj y sistema
 - [x] Tarjetas, botones y pastillas con los 3 temas (Liquid Glass, macOS limpio, Y2K).
-- [x] Notch configurable, reloj flotante, bienvenida, atajos fijos ⌃⌥O/A/C/,, inicio con la Mac, acceso directo (en curso en paralelo).
+- [x] Notch configurable, reloj flotante, bienvenida, atajos fijos ⌃⌥O/A/C/,, inicio con la Mac, acceso directo .
 
 ### E7 · Sesiones de Claude Code
 - [x] Una pastilla por sesión, cola de permisos, "Siempre" con doble confirmación, pregunta/terminado/error reales, saltar a la terminal, limpieza de hooks viejos de Coucou.
