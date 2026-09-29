@@ -1,16 +1,16 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 20 %</h1>
+<h1 align="center">🔵 ETAPA 2 · ORBEX sobre Coucou: 40 %</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ETAPA_2-20%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 20 %" height="60">
+  <img src="https://img.shields.io/badge/ETAPA_2-40%25-3fa7ff?style=for-the-badge" alt="Etapa 2: 40 %" height="60">
 </p>
 
-<h3 align="center">▓▓▓▓░░░░░░░░░░░░░░░░ 20 / 100</h3>
+<h3 align="center">▓▓▓▓▓▓▓▓░░░░░░░░░░░░ 40 / 100</h3>
 
-<h3 align="center">🛠️ Ahora mismo: E2 · Personaje ORBEX en el motor (arrancando)</h3>
+<h3 align="center">🛠️ Ahora mismo: E3 animaciones + personalidad y E4 sonidos (en paralelo)</h3>
 
-<p align="center"><i>Última actualización: 29/09/2026 00:50 UTC — se actualiza en cada push</i></p>
+<p align="center"><i>Última actualización: 29/09/2026 01:53 UTC — se actualiza en cada push</i></p>
 
 <p align="center">Etapa 1 (ORBEX propio, fases 0–6): <b>100 % ✅</b> — versión previa en el commit <code>ab818d5</code></p>
 
@@ -35,8 +35,8 @@ Pesos: E0 3 % · E1 17 % · E2 20 % · E3 15 % · E4 5 % · E5 15 % · E6 10 % �
 - [x] Sintaxis OK + chequeo de símbolos
 
 ## E2 · Personaje ORBEX en el motor (20 %)
-- [ ] `BotEngine` dibuja ORBEX (misma API), mini-ORBEX, portal de vidrio, bugs del motor arreglados
-- [ ] Saludo propio de ORBEX y "tragar archivo" propio
+- [x] `BotEngine` dibuja ORBEX (misma API), mini-ORBEX, portal de vidrio, bugs del motor arreglados
+- [x] Saludo propio de ORBEX y "tragar archivo" propio
 
 ## E3 · Animaciones nuevas y personalidad (15 %)
 - [ ] Caricia, cosquillas, globo al arrastrar, burbujas, órbitas, confeti, empañado, dormir/despertar, estornudo…
@@ -174,3 +174,4 @@ Leyenda: `[x]` hecho y subido · `[~]` en curso · `[ ]` pendiente.
 | 29/09/2026 | 100 % | Cierre: revisión automática OK; listo para descargar e instalar |
 | 29/09/2026 | E2: 3 % | E0: licencia, reglas, decisiones, contratos y plan de la Etapa 2 |
 | 29/09/2026 | E2: 20 % | E1 completa: cascarón de Coucou + puente con ORBEX |
+| 29/09/2026 | E2: 40 % | E2 completa: ORBEX en el motor, saludo y portal |
