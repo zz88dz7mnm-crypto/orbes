@@ -127,7 +127,7 @@ struct IntegrationsSettingsView: View {
                     if !statusMessage.isEmpty {
                         Text(statusMessage)
                             .font(.callout)
-                            .foregroundStyle(statusMessage.hasPrefix("❌") ? .red : .secondary)
+                            .foregroundStyle(statusMessage.hasPrefix("❌") ? Color.red : Color.secondary)
                     }
                     Spacer()
                 }
@@ -180,7 +180,7 @@ struct IntegrationsSettingsView: View {
         guard let url = URL(string: "https://api.vercel.com/v9/projects?limit=100") else { return }
         var req = URLRequest(url: url, timeoutInterval: 10)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: req) { data, response, _ in
+        URLSession.shared.dataTask(with: req) { data, _, _ in
             let names: [String]
             if let data,
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -221,7 +221,9 @@ struct IntegrationsSettingsView: View {
         URLSession.shared.dataTask(with: req) { data, response, _ in
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard let data, code == 200 else {
-                self.fetchN8nWorkflows(urls: urls, apiKey: apiKey, idx: idx + 1)
+                DispatchQueue.main.async {
+                    self.fetchN8nWorkflows(urls: urls, apiKey: apiKey, idx: idx + 1)
+                }
                 return
             }
             let items: [[String: Any]]
