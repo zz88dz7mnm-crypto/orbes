@@ -121,7 +121,7 @@ final class N8nPoller: @unchecked Sendable {
 
     private func fetchDetail(_ urls: [String], apiKey: String, success: Bool, idx: Int) {
         guard idx < urls.count, let url = URL(string: urls[idx]) else {
-            dispatch(success: success, name: "Workflow", detail: nil)
+            dispatch(success: success, name: "Flujo", detail: nil)
             return
         }
         var req = URLRequest(url: url, timeoutInterval: 10)
@@ -154,7 +154,7 @@ final class N8nPoller: @unchecked Sendable {
     private func extractWorkflowName(from json: [String: Any]) -> String {
         if let wd = json["workflowData"] as? [String: Any], let name = wd["name"] as? String { return name }
         if let name = json["name"] as? String { return name }
-        return "Workflow"
+        return "Flujo"
     }
 
     // MARK: - Parse execution output / error message
@@ -203,7 +203,7 @@ final class N8nPoller: @unchecked Sendable {
               let items    = main.first else { return nil }
 
         let count = items.count
-        let header = "→ \(lastNode) · \(count) item\(count == 1 ? "" : "s")"
+        let header = "→ \(lastNode) · \(count) ítem\(count == 1 ? "" : "s")"
 
         // Preview first item's JSON keys (up to 4)
         if let firstItem = items.first,

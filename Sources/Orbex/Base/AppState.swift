@@ -349,6 +349,23 @@ struct ResultItem {
     var url: String?
 }
 
+// MARK: - Tiempo relativo
+
+/// Tiempo relativo corto en español: "recién", "5 min", "2 h", "3 d".
+func orbexTimeAgo(since date: Date, now: Date = Date()) -> String {
+    let diff = now.timeIntervalSince(date)
+    if diff < 60    { return "recién" }
+    if diff < 3600  { return "\(Int(diff/60)) min" }
+    if diff < 86400 { return "\(Int(diff/3600)) h" }
+    return "\(Int(diff/86400)) d"
+}
+
+/// Frase larga: "recién" o "hace 5 min".
+func orbexTimeAgoPhrase(since date: Date, now: Date = Date()) -> String {
+    let short = orbexTimeAgo(since: date, now: now)
+    return short == "recién" ? short : "hace \(short)"
+}
+
 // MARK: - Vercel
 
 struct VercelDeployment: Identifiable {
@@ -361,13 +378,9 @@ struct VercelDeployment: Identifiable {
     let branch: String?
 
     var isSuccess: Bool { state == "READY" }
-    var statusLabel: String { isSuccess ? "Ready" : (state == "CANCELED" ? "Canceled" : "Error") }
+    var statusLabel: String { isSuccess ? "Listo" : (state == "CANCELED" ? "Cancelado" : "Error") }
     var timeAgo: String {
-        let diff = Date().timeIntervalSince(createdAt)
-        if diff < 60    { return "just now" }
-        if diff < 3600  { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
+        orbexTimeAgo(since: createdAt)
     }
 }
 
@@ -385,11 +398,7 @@ struct ResendEmail: Identifiable {
         return first.components(separatedBy: "@").first ?? first
     }
     var timeAgo: String {
-        let diff = Date().timeIntervalSince(createdAt)
-        if diff < 60    { return "just now" }
-        if diff < 3600  { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
+        orbexTimeAgo(since: createdAt)
     }
     var isDelivered: Bool { lastEvent == "delivered" }
 }
@@ -414,11 +423,7 @@ struct StripePayment: Identifiable, Equatable {
     var amountFormatted: String { String(format: "%.2f", Double(amount) / 100.0) }
     var isSuccess: Bool { status == "succeeded" }
     var timeAgo: String {
-        let diff = Date().timeIntervalSince(createdAt)
-        if diff < 60    { return "just now" }
-        if diff < 3600  { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
+        orbexTimeAgo(since: createdAt)
     }
 }
 
@@ -436,7 +441,7 @@ struct CalcomBooking: Identifiable, Equatable {
 
     var isActive: Bool { status == "ACCEPTED" || status == "PENDING" }
     var timeLabel: String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: startTime)
+        let f = DateFormatter(); f.locale = Locale(identifier: "es_AR"); f.dateFormat = "HH:mm"; return f.string(from: startTime)
     }
     var dayKey: String {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: startTime)
@@ -454,11 +459,7 @@ struct NotionPage: Identifiable {
     let url: String
 
     var timeAgo: String {
-        let diff = Date().timeIntervalSince(lastEditedAt)
-        if diff < 60 { return "now" }
-        if diff < 3600 { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
+        orbexTimeAgo(since: lastEditedAt)
     }
 }
 

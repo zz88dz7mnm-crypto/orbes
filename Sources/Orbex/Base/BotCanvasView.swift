@@ -13,6 +13,8 @@ struct BotCanvasView: View {
     var carried: Bool = false
 
     @StateObject private var engine = BotEngine()
+    /// Mirada que pide `PersonalityDirector` (vistazos y mirada sostenida).
+    @State private var glance = GlanceHold()
 
     var body: some View {
         // Oculta, o tapada por el lienzo del saludo o de subir archivo (dibujan su propio ORBEX): en pausa.
@@ -25,6 +27,8 @@ struct BotCanvasView: View {
                 let dt = min(0.05, max(0, now - engine.lastTime))
                 engine.lookX = lookX(state: state, size: size)
                 engine.lookY = lookY(state: state, size: size)
+                // Si el mouse se mueve, la mirada sostenida se suelta y vuelve a seguir al cursor.
+                glance.releaseIfMouseMoved(state.mousePosition, engine: engine)
                 engine.particleOverhang = particleOverhang
                 engine.carried = carried
                 // Cuerpo entero (brazos, piernitas y pies) solo en la vista abierta.
@@ -79,6 +83,13 @@ struct BotCanvasView: View {
             // Caricia: mouse quieto encima de ORBEX en la vista abierta.
             guard !carried else { return }
             engine.setPetting((notif.object as? Bool) ?? false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .personalityGlance)) { notif in
+            guard !carried, let info = notif.userInfo else { return }
+            let dx = (info["dx"] as? CGFloat) ?? 0
+            let dy = (info["dy"] as? CGFloat) ?? 0
+            let duration = (info["duration"] as? Double) ?? 0
+            glance.apply(dx: dx, dy: dy, duration: duration, mouse: state.mousePosition, engine: engine)
         }
         .onReceive(NotificationCenter.default.publisher(for: .botBlink)) { _ in
             engine.blink()
@@ -143,6 +154,53 @@ struct BotCanvasView: View {
                                              uploadProgress: state.uploadProgress)
         // Arriba de la isla = arriba de la pantalla → Y del bot en pantalla = botCy
         return -tanh((state.mousePosition.y - botCy) / 200)
+    }
+}
+
+/// Mirada pedida por la personalidad, sumada a la del cursor (`engine.glanceX/glanceY`).
+/// `duration == 0` → se sostiene; con duración → vistazo que vuelve a la mirada sostenida.
+/// Si el mouse se mueve (más de 40 pt) la mirada sostenida se suelta: manda el cursor.
+@MainActor
+final class GlanceHold {
+    private var heldX: CGFloat = 0
+    private var heldY: CGFloat = 0
+    private var holding = false
+    private var mouseAtHold: CGPoint = .zero
+
+    func apply(dx: CGFloat, dy: CGFloat, duration: Double, mouse: CGPoint, engine: BotEngine) {
+        let x = max(-1, min(1, dx))
+        let y = max(-1, min(1, dy))
+        mouseAtHold = mouse
+        if duration <= 0 {
+            heldX = x
+            heldY = y
+            holding = x != 0 || y != 0
+            engine.anim("glanceX", keys: [TweenKey(target: x, duration: 320, ease: Ease.out)])
+            engine.anim("glanceY", keys: [TweenKey(target: y, duration: 320, ease: Ease.out)])
+        } else {
+            let hold = CGFloat(max(0, duration * 1000 - 560))
+            let backX = holding ? heldX : 0
+            let backY = holding ? heldY : 0
+            engine.anim("glanceX", keys: [
+                TweenKey(target: x, duration: 260, ease: Ease.out),
+                TweenKey(target: x, duration: hold, ease: Ease.lin),
+                TweenKey(target: backX, duration: 300, ease: Ease.inOut),
+            ])
+            engine.anim("glanceY", keys: [
+                TweenKey(target: y, duration: 260, ease: Ease.out),
+                TweenKey(target: y, duration: hold, ease: Ease.lin),
+                TweenKey(target: backY, duration: 300, ease: Ease.inOut),
+            ])
+        }
+    }
+
+    func releaseIfMouseMoved(_ mouse: CGPoint, engine: BotEngine) {
+        guard holding, hypot(mouse.x - mouseAtHold.x, mouse.y - mouseAtHold.y) > 40 else { return }
+        holding = false
+        heldX = 0
+        heldY = 0
+        engine.anim("glanceX", keys: [TweenKey(target: 0, duration: 350, ease: Ease.inOut)])
+        engine.anim("glanceY", keys: [TweenKey(target: 0, duration: 350, ease: Ease.inOut)])
     }
 }
 
