@@ -120,12 +120,8 @@ struct OverviewView: View {
         guard let task else { return }
         switch task.id {
         case "integration_claude":
-            let vscodeBundleId = "com.microsoft.VSCode"
-            if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == vscodeBundleId }) {
-                app.activate(options: .activateIgnoringOtherApps)
-            } else {
-                NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Visual Studio Code.app"))
-            }
+            // La terminal (o el editor) donde corre Claude Code.
+            SessionsBridge.shared.jumpToTerminal()
         case "integration_resend":
             NSWorkspace.shared.open(URL(string: "https://resend.com/emails")!)
         case "integration_vercel":
@@ -143,6 +139,11 @@ struct OverviewView: View {
         case "integration_calcom":
             NSWorkspace.shared.open(URL(string: "https://app.cal.com/bookings")!)
         default:
+            // Pastilla de una sesión de Claude Code: saltar a su pestaña exacta.
+            if let sid = SessionsBridge.sessionID(fromTask: task.id) {
+                SessionsBridge.shared.jumpToTerminal(sessionID: sid)
+                return
+            }
             // Non-integration real tasks
             if task.source == .n8n {
                 if let urlStr = KeychainStore.shared.get("n8n-url"), let url = URL(string: urlStr) {
@@ -1284,7 +1285,7 @@ struct IntegrationCardView: View {
                     Circle()
                         .fill(Color(hex: task.color))
                         .frame(width: 7, height: 7)
-                    Text(task.id == "integration_claude" ? "VS Code" : task.name)
+                    Text(task.id == "integration_claude" ? "Claude Code" : task.name)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Color(hex: "#F5F6F8"))
                     Text("Integration")
@@ -2449,7 +2450,7 @@ struct AgentPill: View {
 
     // VS Code pill always shows "VS Code" label regardless of active project name
     private var displayName: String {
-        task.id == "integration_claude" ? "VS Code" : task.name
+        task.id == "integration_claude" ? "Claude Code" : task.name
     }
 
     var body: some View {
