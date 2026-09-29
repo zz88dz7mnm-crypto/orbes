@@ -354,10 +354,12 @@ struct QuestionView: View {
         let approval = store.approvals.first.flatMap { $0.event.isQuestion ? $0 : nil }
         let session = approval == nil ? bridge.questionSession : nil
         let sessionID = approval?.event.sessionID ?? session?.id
-        let question = approval?.event.toolInputSummary
-            ?? session?.steps.last(where: { $0.text.hasPrefix("Pregunta") })
-                .map { $0.text.hasPrefix("Pregunta: ") ? String($0.text.dropFirst("Pregunta: ".count)) : $0.text }
-            ?? "Claude te está preguntando algo."
+        let askedStep: SessionStep? = session?.steps.last(where: { $0.text.hasPrefix("Pregunta") })
+        var askedText: String? = nil
+        if let step = askedStep {
+            askedText = step.text.hasPrefix("Pregunta: ") ? String(step.text.dropFirst("Pregunta: ".count)) : step.text
+        }
+        let question: String = approval?.event.toolInputSummary ?? askedText ?? "Claude te está preguntando algo."
         let options = approval?.event.questionOptions ?? []
 
         return ZStack {
