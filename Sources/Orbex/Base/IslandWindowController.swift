@@ -194,8 +194,8 @@ final class IslandWindowController: NSWindowController {
         viewSubscription = state.$view
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newView in
-                guard let self else { return }
-                if newView == .prompt {
+                MainActor.assumeIsolated {
+                    guard let self, newView == .prompt else { return }
                     self.islandPanel.makeKey()
                 }
             }
@@ -241,7 +241,7 @@ final class IslandWindowController: NSWindowController {
         NotificationCenter.default.addObserver(
             forName: .greetComplete, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.fsm.greetComplete()
+            MainActor.assumeIsolated { self?.fsm.greetComplete() }
         }
     }
 
@@ -493,12 +493,12 @@ final class IslandWindowController: NSWindowController {
 
         // Collapse requests from views (OK button, etc.)
         NotificationCenter.default.addObserver(forName: .islandCollapse, object: nil, queue: .main) { [weak self] _ in
-            self?.collapse()
+            MainActor.assumeIsolated { self?.collapse() }
         }
 
         // .botDizzy — lo manda BotEngine.tickle() al tercer clic rápido; show confused view + recover after 3.3s
         NotificationCenter.default.addObserver(forName: .botDizzy, object: nil, queue: .main) { [weak self] _ in
-            self?.handleDizzy()
+            MainActor.assumeIsolated { self?.handleDizzy() }
         }
 
         // Window attach drag.
@@ -586,11 +586,9 @@ final class IslandWindowController: NSWindowController {
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil, queue: .main
         ) { [weak self] note in
-            guard let self else { return }
-            if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-               app.bundleIdentifier != ourBundle {
-                self.state.lastExternalApp = app
-            }
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  app.bundleIdentifier != ourBundle else { return }
+            MainActor.assumeIsolated { self?.state.lastExternalApp = app }
         }
     }
 
@@ -825,10 +823,12 @@ final class IslandWindowController: NSWindowController {
         state.isPinned = true
         finishedPinTimer?.cancel()
         let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.state.removeTask(id: taskId)
-            self.state.isPinned = false
-            self.collapse()
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.state.removeTask(id: taskId)
+                self.state.isPinned = false
+                self.collapse()
+            }
         }
         finishedPinTimer = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 5.2, execute: item)
@@ -842,13 +842,15 @@ final class IslandWindowController: NSWindowController {
         expand(to: .confused)
         confusedRecoveryTimer?.cancel()
         let recovery = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.state.stateOverride = nil
-            if self.state.view == .confused {
-                let fallback = self.state.tasks.isEmpty ? IslandView.empty : .overview
-                self.state.view = (prevView == .confused) ? fallback : prevView
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.state.stateOverride = nil
+                if self.state.view == .confused {
+                    let fallback = self.state.tasks.isEmpty ? IslandView.empty : .overview
+                    self.state.view = (prevView == .confused) ? fallback : prevView
+                }
+                NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.happy)
             }
-            NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.happy)
         }
         confusedRecoveryTimer = recovery
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.3, execute: recovery)

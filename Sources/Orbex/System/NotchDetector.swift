@@ -2,6 +2,7 @@ import AppKit
 import OrbexCore
 
 /// Mide el notch en vivo con `NSScreen` (informe §3.2) y elige la pantalla donde vive la isla.
+@MainActor
 enum NotchDetector {
 
     struct Placement {

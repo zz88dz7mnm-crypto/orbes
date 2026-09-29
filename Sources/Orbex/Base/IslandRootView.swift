@@ -391,7 +391,7 @@ struct CountdownBar: View {
 
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            updateBar()
+            MainActor.assumeIsolated { updateBar() }
         }
     }
 
