@@ -2,35 +2,35 @@
 // Modificado para ORBEX (solo el código; ningún asset de Coucou). Ver THIRD_PARTY_NOTICES.md.
 
 import SwiftUI
+import QuartzCore
 
-/// SwiftUI wrapper: TimelineView drives a Canvas that calls BotEngine.draw().
-/// Uses a shared engine per-task; the main bot uses AppState's shared engine.
+/// ORBEX de la isla: un `TimelineView` le da cuadros a un `Canvas` que dibuja `BotEngine`.
+/// Cada vista tiene su propio motor (el de la isla, el fantasma al arrastrar, el puntito al subir).
 struct BotCanvasView: View {
     @ObservedObject var state: AppState
     var particleOverhang: CGFloat = 0
 
-    // One engine per view instance (main bot)
     @StateObject private var engine = BotEngine()
 
     var body: some View {
-        TimelineView(.animation(paused: state.mode == .hidden)) { timeline in
+        // Oculta, o tapada por el lienzo del saludo o de subir archivo (dibujan su propio ORBEX): en pausa.
+        let paused = state.mode == .hidden || isCovered
+        TimelineView(.animation(minimumInterval: 1.0 / AppModel.shared.characterFPS, paused: paused)) { timeline in
             Canvas { context, size in
-                let now = timeline.date.timeIntervalSinceReferenceDate
-                let dtRaw = min(0.05, now - engine.lastTime)
-                let dt = dtRaw
+                _ = timeline.date   // redibuja en cada cuadro de la línea de tiempo
+                // Un solo reloj para todo el motor (tweens, dt, partículas): CACurrentMediaTime.
+                let now = CACurrentMediaTime()
+                let dt = min(0.05, max(0, now - engine.lastTime))
                 engine.lookX = lookX(state: state, size: size)
                 engine.lookY = lookY(state: state, size: size)
                 engine.particleOverhang = particleOverhang
-                // Widen slot when file is hovering over the mailbox (morph > 0.5)
-                // Open mouth (hover=0.20R) when file dragged over box; close when not
-                if engine.morph > 0.3 {
-                    engine.slotHTarget = state.fileDragOver ? 0.20 : 0
-                } else {
-                    engine.slotHTarget = 0
-                    if engine.morph < 0.05 { engine.slotH = 0; engine.slotHVel = 0 }
-                }
-                // Integration pills have a fixed brand color → use it as bodyColor.
-                // Claude Code tasks use state-based gradient (working=blue, thinking=purple, etc.).
+                // Cuerpo entero (brazos, piernitas y pies) solo en la vista abierta.
+                engine.fullBody = state.mode == .expanded && state.view != .uploading
+                // Archivo encima del portal: se entreabre. El motor decide la apertura final y no
+                // deja que esto pise un trago en curso.
+                engine.portalHover = (engine.morph > 0.3 && state.fileDragOver) ? 0.20 : 0
+                // Las pastillas de integraciones tienen color de marca → tiñe el vidrio.
+                // Las tareas de Claude Code usan el color del estado (trabajando = azul, pensando = violeta…).
                 engine.bodyColor = (state.focusTask?.isIntegration == true)
                     ? cgColorFromHex(state.focusTask!.color)
                     : nil
@@ -44,16 +44,16 @@ struct BotCanvasView: View {
             engine.setState(newState)
         }
         .onChange(of: state.view) { _, newView in
-            // Morph up when upload view is active
+            // Portal de vidrio mientras está la vista de subir archivo
             if state.mode == .expanded && newView == .upload {
                 engine.anim("morph", keys: [TweenKey(target: 1, duration: 550, ease: Ease.inOut)])
             } else if newView != .upload && newView != .uploading && engine.morph > 0.01 {
-                // Any other view (not mid-gulp): morph back
+                // Cualquier otra vista (que no esté tragando): vuelve a ser ORBEX
                 engine.anim("morph", keys: [TweenKey(target: 0, duration: 550, ease: Ease.inOut)])
             }
         }
         .onChange(of: state.mode) { _, newMode in
-            // Hard-reset morph when island collapses
+            // Si la isla se cierra, el portal se deshace de una
             if newMode != .expanded {
                 engine.tweens.removeValue(forKey: "morph")
                 engine.locks.remove("morph")
@@ -62,10 +62,12 @@ struct BotCanvasView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .triggerEmote)) { notif in
             if let emote = notif.object as? BotEmote {
+                engine.audible = canSpeak
                 engine.triggerEmote(emote)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .triggerSlap)) { _ in
+            engine.audible = canSpeak
             engine.slap()
         }
         .onReceive(NotificationCenter.default.publisher(for: .botBlink)) { _ in
@@ -77,6 +79,7 @@ struct BotCanvasView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .botGulp)) { _ in
+            engine.audible = canSpeak
             engine.gulp()
         }
         .onReceive(NotificationCenter.default.publisher(for: .botMorphTo)) { notif in
@@ -86,12 +89,24 @@ struct BotCanvasView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .botGreet)) { _ in
+            engine.audible = canSpeak
             engine.greet()
         }
         .onAppear {
             engine.setState(state.effectiveState, force: true)
         }
     }
+
+    /// Otro lienzo (saludo o subir archivo) dibuja su propio ORBEX encima de este.
+    private var isCovered: Bool {
+        guard state.mode == .expanded else { return false }
+        if state.view == .greeting { return true }
+        return UploadSequenceEngine.shared.isActive
+            && (state.view == .upload || state.view == .uploading || state.view == .choose)
+    }
+
+    /// Las reacciones propias (emotes, saludo, trago) suenan solo si este ORBEX se ve.
+    private var canSpeak: Bool { state.mode != .hidden && !isCovered }
 
     private func lookX(state: AppState, size: CGSize) -> CGFloat {
         let screen = NSScreen.main ?? NSScreen.screens[0]
@@ -101,7 +116,7 @@ struct BotCanvasView: View {
         let (botCx, _, _, _) = botPosition(mode: state.mode, view: state.view,
                                             islandW: islandW, islandH: islandH,
                                             uploadProgress: state.uploadProgress)
-        // Island is centered on screen; bot is at botCx within island coords
+        // La isla está centrada en la pantalla; el bot está en botCx dentro de la isla
         let botScreenX = screen.frame.midX - islandW / 2 + botCx
         return tanh((state.mousePosition.x - botScreenX) / 260)
     }
@@ -116,12 +131,12 @@ struct BotCanvasView: View {
         let (_, botCy, _, _) = botPosition(mode: state.mode, view: state.view,
                                              islandW: islandW, islandH: actualH,
                                              uploadProgress: state.uploadProgress)
-        // Island top = screen top → bot screen Y = botCy from island top
+        // Arriba de la isla = arriba de la pantalla → Y del bot en pantalla = botCy
         return -tanh((state.mousePosition.y - botCy) / 200)
     }
 }
 
-/// Mini bot canvas (for agent pills/column)
+/// Mini-ORBEX (pastillas y grilla compacta): esfera + ojos + color de marca, sin extremidades.
 struct MiniBotCanvasView: View {
     let task: AgentTask
     @StateObject private var engine: BotEngine
@@ -137,10 +152,12 @@ struct MiniBotCanvasView: View {
     }
 
     var body: some View {
-        TimelineView(.animation) { timeline in
+        // A este tamaño alcanza con 30 cuadros por segundo (menos aún en ahorro de energía).
+        TimelineView(.animation(minimumInterval: 1.0 / min(30, AppModel.shared.characterFPS))) { timeline in
             Canvas { context, size in
-                let now = timeline.date.timeIntervalSinceReferenceDate
-                let dt = min(0.05, now - engine.lastTime)
+                _ = timeline.date
+                let now = CACurrentMediaTime()
+                let dt = min(0.05, max(0, now - engine.lastTime))
                 engine.update(dt: dt)
                 engine.draw(context: context, size: size)
             }
@@ -148,12 +165,15 @@ struct MiniBotCanvasView: View {
         .onChange(of: task.state) { _, newState in
             engine.setState(newState)
         }
+        .onChange(of: task.color) { _, hex in
+            engine.bodyColor = cgColorFromHex(hex)
+        }
         .onAppear {
             engine.setState(task.state, force: true)
             if let emote = task.emote {
                 engine.setPermanentEmote(emote)
             }
-            // Direct eye override takes priority (e.g. .wide eyes for Research)
+            // Una forma de ojos fija tiene prioridad (p. ej. .wide para Research)
             if let eye = task.miniEye {
                 engine.permanentEye = eye
                 engine.eyeOverride = eye
@@ -163,7 +183,7 @@ struct MiniBotCanvasView: View {
     }
 }
 
-// MARK: - CGColor from hex string
+// MARK: - CGColor desde hex
 
 func cgColorFromHex(_ hex: String) -> CGColor? {
     let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
