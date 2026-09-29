@@ -192,28 +192,111 @@ struct EmptyStateView: View {
 
 // MARK: - Approval
 
+/// ORBEX: permiso pendiente de Claude Code / Codex (el primero de la cola de `SessionsStore`).
+/// Permitir / Siempre (con segunda confirmación) / Denegar: nada se aprueba sin un clic.
 struct ApprovalView: View {
     @ObservedObject var state: AppState
+    @ObservedObject private var store = SessionsStore.shared
+    @State private var confirmingAlways = false
 
-    var approval: ApprovalInfo? { state.pendingApproval }
+    private var bridge: SessionsBridge { SessionsBridge.shared }
+    private var approval: PendingApproval? { store.approvals.first }
 
     var body: some View {
-        ZStack {
+        if approval?.event.isQuestion == true || (approval == nil && bridge.questionSession != nil) {
+            QuestionView(state: state)
+        } else if let approval {
+            content(approval)
+        } else {
+            terminalFallback
+        }
+    }
+
+    private func content(_ a: PendingApproval) -> some View {
+        let e = a.event
+        let tool = e.toolName ?? "Herramienta"
+        let project = e.projectName
+        return ZStack {
             CardBackground(wash: .amber)
-            VStack(alignment: .leading, spacing: 5) {
-                AgentWho(task: state.focusTask, label: "needs permission")
-                CodeBlock(text: approval?.command ?? approval?.tool ?? "…")
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    AgentWho(task: bridge.task(forSession: e.sessionID) ?? state.focusTask,
+                             label: "necesita tu permiso")
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if store.approvals.count > 1 {
+                        Text("1 de \(store.approvals.count)")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color(hex: "#8E939C"))
+                            .fixedSize()
+                    }
+                    TerminalLinkButton { bridge.jumpToTerminal(sessionID: e.sessionID) }
+                }
+                HStack(alignment: .top, spacing: 6) {
+                    Text(tool)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(hex: "#F5A524"))
+                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .background(Color(hex: "#F5A524").opacity(0.14))
+                        .clipShape(Capsule())
+                        .fixedSize()
+                    CodeBlock(text: e.toolInputSummary ?? e.message ?? e.stepDescription)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                }
                 HStack(spacing: 8) {
-                    SecondaryButton("Deny") {
-                        SessionsBridge.shared.sendApprovalDecision("deny")
+                    SecondaryButton("Denegar") {
+                        confirmingAlways = false
+                        bridge.decide(.deny)
                     }
-                    PrimaryButton("Allow") {
-                        SessionsBridge.shared.sendApprovalDecision("allow")
+                    PrimaryButton("Permitir") {
+                        confirmingAlways = false
+                        bridge.decide(.allow)
                     }
-                    if !state.alwaysAllow {
-                        SecondaryButton("Always") {
-                            SessionsBridge.shared.sendApprovalDecision("always")
+                    if confirmingAlways {
+                        PrimaryButton("¿Seguro? Confirmar") {
+                            confirmingAlways = false
+                            bridge.decide(.allowAlways)
                         }
+                        .help("Permitir siempre \(tool) en \(project), sin volver a preguntar")
+                    } else {
+                        SecondaryButton("Siempre") {
+                            confirmingAlways = true
+                            let id = a.id
+                            // La confirmación vence sola: un clic distraído no queda armado.
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                                if SessionsStore.shared.approvals.first?.id == id { confirmingAlways = false }
+                            }
+                        }
+                        .help("Permitir siempre \(tool) en \(project) (te pido confirmación)")
+                    }
+                }
+            }
+            .padding(.leading, 116)
+            .padding(.trailing, 16)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .onChange(of: a.id) { _, _ in confirmingAlways = false }
+    }
+
+    /// Sin permiso en la cola: Claude pregunta en su terminal (el hook no respondió a tiempo).
+    private var terminalFallback: some View {
+        let s = store.sessions.first { $0.status == .needsPermission }
+        return ZStack {
+            CardBackground(wash: .amber)
+            VStack(alignment: .leading, spacing: 6) {
+                AgentWho(task: s.flatMap { bridge.task(forSession: $0.id) } ?? state.focusTask,
+                         label: s == nil ? "Claude Code" : "necesita tu permiso")
+                Text(s == nil ? "No hay permisos pendientes." : "Te está pidiendo permiso en la terminal.")
+                    .font(.system(size: 15, weight: .semibold))
+                HStack(spacing: 8) {
+                    if let s {
+                        PrimaryButton("Ir a la terminal") { bridge.jumpToTerminal(sessionID: s.id) }
+                    }
+                    SecondaryButton("Cerrar") {
+                        state.isPinned = false
+                        OrbexBridge.shared.close()
                     }
                 }
             }
@@ -225,22 +308,86 @@ struct ApprovalView: View {
     }
 }
 
-// MARK: - Question
-
-struct QuestionView: View {
-    @ObservedObject var state: AppState
+/// ORBEX: botoncito "Ir a la terminal" de las vistas de sesión.
+struct TerminalLinkButton: View {
+    let action: () -> Void
 
     var body: some View {
-        ZStack {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "terminal")
+                    .font(.system(size: 9, weight: .semibold))
+                Text("Ir a la terminal")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundColor(Color(hex: "#C9CCD2"))
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Color.white.opacity(0.07))
+            .clipShape(Capsule())
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .help("Saltar a la terminal de esta sesión")
+    }
+}
+
+// MARK: - Question
+
+/// ORBEX: pregunta de Claude (`AskUserQuestion`). Se muestra la pregunta y sus opciones, pero se
+/// contesta en la terminal: ORBEX nunca elige por vos.
+struct QuestionView: View {
+    @ObservedObject var state: AppState
+    @ObservedObject private var store = SessionsStore.shared
+
+    private var bridge: SessionsBridge { SessionsBridge.shared }
+
+    var body: some View {
+        let approval = store.approvals.first.flatMap { $0.event.isQuestion ? $0 : nil }
+        let session = approval == nil ? bridge.questionSession : nil
+        let sessionID = approval?.event.sessionID ?? session?.id
+        let question = approval?.event.toolInputSummary
+            ?? session?.steps.last(where: { $0.text.hasPrefix("Pregunta") })
+                .map { $0.text.hasPrefix("Pregunta: ") ? String($0.text.dropFirst("Pregunta: ".count)) : $0.text }
+            ?? "Claude te está preguntando algo."
+        let options = approval?.event.questionOptions ?? []
+
+        return ZStack {
             CardBackground(wash: .cyan)
-            VStack(alignment: .leading, spacing: 5) {
-                AgentWho(task: state.focusTask, label: "Claude Code is asking a question")
-                Text("Which search engine to use?")
-                    .font(.system(size: 15, weight: .semibold))
-                HStack(spacing: 8) {
-                    ForEach(["Postgres full-text", "Meilisearch", "Algolia"], id: \.self) { opt in
-                        SecondaryButton(opt) { /* answer */ }
+            VStack(alignment: .leading, spacing: 6) {
+                AgentWho(task: sessionID.flatMap { bridge.task(forSession: $0) } ?? state.focusTask,
+                         label: "te pregunta")
+                    .lineLimit(1)
+                Text(question)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !options.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(Array(options.prefix(3).enumerated()), id: \.offset) { _, opt in
+                            Text(opt)
+                                .font(.system(size: 11))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .foregroundColor(Color(hex: "#C9CCD2"))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Color.white.opacity(0.07))
+                                .clipShape(Capsule())
+                        }
+                        if options.count > 3 {
+                            Text("+\(options.count - 3)")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(hex: "#8E939C"))
+                                .fixedSize()
+                        }
                     }
+                }
+                HStack(spacing: 8) {
+                    PrimaryButton("Responder en la terminal") { bridge.answerInTerminal() }
+                    Text("ORBEX no elige por vos.")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "#8E939C"))
+                        .lineLimit(1)
                 }
             }
             .padding(.leading, 116)
@@ -253,22 +400,39 @@ struct QuestionView: View {
 
 // MARK: - Error
 
+/// ORBEX: una sesión se detuvo por un error (datos reales de la sesión).
 struct ErrorView: View {
     @ObservedObject var state: AppState
+    @ObservedObject private var bridge = SessionsBridge.shared
 
     var body: some View {
-        ZStack {
+        let s = bridge.endedSession(for: .failed)
+        let task = s.flatMap { bridge.task(forSession: $0.id) } ?? state.focusTask
+        let detail = s?.steps.last?.text ?? task?.steps.last ?? "Se detuvo por un error."
+        let prompt = s.flatMap(SessionsBridge.lastPrompt)
+
+        return ZStack {
             CardBackground(wash: .red)
             VStack(alignment: .leading, spacing: 5) {
-                AgentWho(task: state.focusTask, label: "n8n")
-                Text("Workflow stopped.")
+                AgentWho(task: task, label: "se detuvo")
+                    .lineLimit(1)
+                Text(prompt.map { "No pudo terminar: \($0)" } ?? "No pudo terminar.")
                     .font(.system(size: 15, weight: .semibold))
-                Text("Gmail node timed out after 30s. Retry or open n8n.")
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(detail)
                     .font(.system(size: 12))
                     .foregroundColor(Color(hex: "#FF8D97"))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
                 HStack(spacing: 8) {
-                    PrimaryButton("Retry") { /* retry */ }
-                    SecondaryButton("Open in n8n") { /* open */ }
+                    if let s {
+                        PrimaryButton("Ir a la terminal") {
+                            bridge.jumpToTerminal(sessionID: s.id)
+                            OrbexBridge.shared.close()
+                        }
+                    }
+                    SecondaryButton("Cerrar") { OrbexBridge.shared.close() }
                 }
             }
             .padding(.leading, 116)
@@ -281,32 +445,43 @@ struct ErrorView: View {
 
 // MARK: - Finished
 
+/// ORBEX: una sesión terminó (qué se pidió, cuánto tardó y el último paso).
 struct FinishedView: View {
     @ObservedObject var state: AppState
+    @ObservedObject private var bridge = SessionsBridge.shared
 
     var body: some View {
-        ZStack {
+        let s = bridge.endedSession(for: .finished)
+        let task = s.flatMap { bridge.task(forSession: $0.id) } ?? state.focusTask
+        let prompt = s.flatMap(SessionsBridge.lastPrompt)
+        let work = s.flatMap(SessionsBridge.lastWork)
+        let duration = s.flatMap(SessionsBridge.durationText)
+        let title = prompt ?? work ?? task?.steps.last ?? "Listo"
+
+        return ZStack {
             CardBackground(wash: .green)
             VStack(alignment: .leading, spacing: 5) {
-                AgentWho(task: state.focusTask, label: "Claude Code finished")
-                Text(state.focusTask?.steps.last ?? "Session finished")
+                AgentWho(task: task, label: duration.map { "terminó en \($0)" } ?? "terminó")
+                    .lineLimit(1)
+                Text(title)
                     .font(.system(size: 15, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if prompt != nil, let work {
+                    Text("Último paso: \(work)")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hex: "#9398A1"))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
                 HStack(spacing: 8) {
-                    #if !APPSTORE
-                    PrimaryButton("Open terminal") {
-                        let terminalBundleIds = ["com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty", "com.mitchellh.ghostty"]
-                        let activated = terminalBundleIds.compactMap { id in
-                            NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }
-                        }.first.map { $0.activate(options: .activateIgnoringOtherApps) }
-                        if activated == nil {
-                            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
+                    if let s {
+                        PrimaryButton("Ir a la terminal") {
+                            bridge.jumpToTerminal(sessionID: s.id)
+                            OrbexBridge.shared.close()
                         }
-                        NotificationCenter.default.post(name: .islandCollapse, object: nil)
                     }
-                    #endif
-                    SecondaryButton("OK") {
-                        NotificationCenter.default.post(name: .islandCollapse, object: nil)
-                    }
+                    SecondaryButton("OK") { OrbexBridge.shared.close() }
                 }
             }
             .padding(.leading, 116)
@@ -2278,12 +2453,8 @@ struct AgentPill: View {
         Button(action: { onTap() }) {
             ZStack(alignment: .topTrailing) {
                 ZStack {
-                    Capsule()
-                        .fill(isHovered
-                              ? Color(hex: task.color).opacity(0.18)
-                              : Color(hex: "#0E0F11"))
-                    Capsule()
-                        .stroke(Color(hex: task.color).opacity(isHovered ? 0.55 : 0.14), lineWidth: 1)
+                    // ORBEX: superficie según el tema (Themes/IslandSkins.swift).
+                    AgentPillSurface(color: Color(hex: task.color), hovered: isHovered)
                     HStack(spacing: 0) {
                         MiniBotCanvasView(task: task)
                             .frame(width: 22 / 0.6, height: 22 / 0.6)
@@ -2343,8 +2514,7 @@ struct PillBadgeView: View {
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(Color(hex: "#0B0C0E"))
+            PillBadgeRing()
                 .frame(width: 14, height: 14)
             Circle()
                 .fill(badgeColor)
@@ -2407,24 +2577,8 @@ struct CardBackground<Content: View>: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(hex: "#141518"))
-                .overlay(
-                    RadialGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: washColor, location: 0),
-                            .init(color: .clear, location: 0.7)
-                        ]),
-                        center: UnitPoint(x: 0.5, y: 1.3),
-                        startRadius: 0,
-                        endRadius: 280
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.white.opacity(0.035), lineWidth: 1)
-                )
+            // ORBEX: el fondo sigue al tema activo (Themes/IslandSkins.swift).
+            IslandCardSurface(wash: washColor)
 
             if let content = content {
                 content()
@@ -2441,24 +2595,7 @@ extension CardBackground where Content == EmptyView {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(hex: "#141518"))
-                .overlay(
-                    RadialGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: washColor, location: 0),
-                            .init(color: .clear, location: 0.7)
-                        ]),
-                        center: UnitPoint(x: 0.5, y: 1.3),
-                        startRadius: 0,
-                        endRadius: 280
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.white.opacity(0.035), lineWidth: 1)
-                )
+            IslandCardSurface(wash: washColor)
         }
     }
 }
@@ -2617,9 +2754,7 @@ struct PrimaryButton: View {
                 }
             }
             .padding(.horizontal, 13).padding(.vertical, 7)
-            .background(Color(hex: "#F5F6F8"))
-            .foregroundColor(Color(hex: "#0B0C0E"))
-            .clipShape(Capsule())
+            .islandButtonSkin(.primary, shape: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -2646,9 +2781,7 @@ struct SecondaryButton: View {
                 }
             }
             .padding(.horizontal, 13).padding(.vertical, 7)
-            .background(Color.white.opacity(0.09))
-            .foregroundColor(Color(hex: "#F1F2F4"))
-            .clipShape(Capsule())
+            .islandButtonSkin(.secondary, shape: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -2658,8 +2791,7 @@ struct IconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(width: 28, height: 28)
-            .background(Color.white.opacity(0.08))
-            .clipShape(Circle())
+            .islandButtonSkin(.secondary, shape: Circle(), setsForeground: false, pressed: configuration.isPressed)
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
     }
 }
@@ -2668,8 +2800,7 @@ struct SendButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(width: 28, height: 28)
-            .background(Color(hex: "#F5F6F8"))
-            .clipShape(Circle())
+            .islandButtonSkin(.primary, shape: Circle(), setsForeground: false, pressed: configuration.isPressed)
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
     }
 }
@@ -2758,9 +2889,7 @@ struct StatusBadge: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(ok ? Color(hex: "#22C55E") : Color(hex: "#F4505E"))
-                .frame(width: 6, height: 6)
+            StatusLight(color: ok ? Color(hex: "#22C55E") : Color(hex: "#F4505E"))
             Text(label)
                 .font(.system(size: 11))
                 .foregroundColor(Color(hex: "#8E939C"))
