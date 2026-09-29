@@ -1,11 +1,18 @@
 // Basado en Coucou (https://github.com/louis-cfm/coucou) © 2026 Louis Raillé — licencia MIT.
 // Modificado para ORBEX (solo el código; ningún asset de Coucou). Ver THIRD_PARTY_NOTICES.md.
+//
+// Motor del personaje de la isla. Del original queda la lógica genérica: tweens y easing, partículas,
+// estados y emotes, proyección de los ojos sobre la esfera (yaw/pitch/roll), squash & stretch, rebote,
+// insignias, morph y apertura con resorte. Todo lo que se ve es ORBEX (`OrbexPainter`): esfera de vidrio
+// teñida por el estado, ojos ovalados, brazos-gota, piernitas, halo, insignias de vidrio y portal de vidrio.
 
 import Foundation
 import CoreGraphics
+import QuartzCore
 import SwiftUI
+import OrbexCore
 
-// MARK: - Easing functions (same as prototype: E.out, E.inOut, E.back, E.lin)
+// MARK: - Easing (E.out, E.inOut, E.back, E.lin)
 
 enum Ease {
     static func out(_ t: CGFloat) -> CGFloat   { 1 - pow(1 - t, 3) }
@@ -14,11 +21,11 @@ enum Ease {
     static func lin(_ t: CGFloat) -> CGFloat   { t }
 }
 
-// MARK: - Tween key: [target, duration_ms, easing]
+// MARK: - Tween: [destino, duración en ms, easing]
 
 struct TweenKey {
     let target: CGFloat
-    let duration: CGFloat    // milliseconds
+    let duration: CGFloat    // milisegundos
     let ease: (CGFloat) -> CGFloat
 }
 
@@ -31,19 +38,20 @@ struct Tween {
     var onComplete: (() -> Void)? = nil
 }
 
-// MARK: - Particle
+// MARK: - Partículas
 
 struct Particle {
-    enum ParticleType { case heart, star, spark, sweat, z }
+    /// Corazón, estrellita dorada, chispita de vidrio, gotita de sudor, "z" de dormir, burbujita.
+    enum ParticleType { case heart, star, spark, sweat, z, bubble }
     var type: ParticleType
-    var x, y, vx, vy: CGFloat
-    var age: Double        // seconds
+    var x, y, vx, vy: CGFloat   // en unidades de 1,3 R desde el centro del cuerpo
+    var age: Double             // segundos
     var life: Double
     var rot: CGFloat
     var size: CGFloat
 }
 
-// MARK: - Bot state config (mirrors STATES in prototype)
+// MARK: - Configuración de cada estado
 
 struct BotStateCfg {
     let color: CGColor
@@ -58,7 +66,7 @@ struct BotStateCfg {
     let breathes: Bool
     let zz: Bool
     let sweat: Bool
-    let look: CGPoint?     // fixed look direction
+    let look: CGPoint?     // mirada fija
     let tilt: CGFloat
     let sound: String?
 }
@@ -74,20 +82,26 @@ enum BadgeType {
     case dot(CGColor)
 }
 
-// MARK: - ORBEX track constants (from the prototype track)
+// MARK: - Constantes de ORBEX (fracciones del radio R de la esfera; ver design/character/README.md)
 
 enum BotConst {
-    static let eyeW: CGFloat  = 0.25
-    static let eyeH: CGFloat  = 0.27
-    static let eyeSp: CGFloat = 0.37
-    static let eyeP: CGFloat  = -0.12
-    static let baseTop    = CGColor(red: 0.929, green: 0.929, blue: 0.937, alpha: 1)  // #EDEDEF
-    static let baseBottom = CGColor(red: 0.769, green: 0.773, blue: 0.792, alpha: 1)  // #C4C5CA
-    static let ink        = CGColor(red: 0.102, green: 0.082, blue: 0.071, alpha: 1)  // #1A1412
-    static let miniInk    = CGColor(red: 0.063, green: 0.075, blue: 0.102, alpha: 1)  // #10131A
+    /// Ojos: óvalos verticales de 0,075 D × 0,20 D (D = 2 R).
+    static let eyeW: CGFloat  = 0.15
+    static let eyeH: CGFloat  = 0.40
+    /// Posición de cada ojo sobre la esfera: yaw (±0,14 D del eje) y pitch (un poco arriba del centro).
+    static let eyeSp: CGFloat = 0.29
+    static let eyeP: CGFloat  = 0.12
+    /// Vidrio por defecto (transparente azulado, #D6E4F0) y su sombra.
+    static let baseTop    = CGColor(red: 0.84, green: 0.89, blue: 0.94, alpha: 1)
+    static let baseBottom = CGColor(red: 0.60, green: 0.68, blue: 0.78, alpha: 1)
+    /// Tinta de los ojos (casi negro).
+    static let ink        = CGColor(red: 0.03, green: 0.035, blue: 0.05, alpha: 1)
+    static let miniInk    = CGColor(red: 0.02, green: 0.025, blue: 0.04, alpha: 1)
+    /// Radio mínimo (pt) para dibujar piernitas y pies.
+    static let limbsMinR: CGFloat = 14
 }
 
-// MARK: - Bot state configs
+// MARK: - Estados
 
 let BotStates: [BotState: BotStateCfg] = [
     .idle: BotStateCfg(
@@ -133,7 +147,7 @@ let BotStates: [BotState: BotStateCfg] = [
         look:nil, tilt:0.17, sound:"question"),
     .error: BotStateCfg(
         color: CGColor(red:0.957,green:0.314,blue:0.369,alpha:1), tint:0.78,
-        eye:.flat, badge:.dot(CGColor(red:0.957,green:0.314,blue:0.369,alpha:1)),
+        eye:.flat, badge:.bang(CGColor(red:0.957,green:0.314,blue:0.369,alpha:1)),
         badgeColor: CGColor(red:0.957,green:0.314,blue:0.369,alpha:1),
         glow: CGColor(red:0.957,green:0.314,blue:0.369,alpha:1), glowOpacity:0.55,
         bounces:false, scans:false, breathes:false, zz:false, sweat:false,
@@ -168,95 +182,136 @@ let BotStates: [BotState: BotStateCfg] = [
         look:nil, tilt:0, sound:"dizzy"),
 ]
 
-// MARK: - Bot engine
+// MARK: - Motor
 
 @MainActor
 final class BotEngine: ObservableObject {
     var isMini: Bool = false
-    var bodyColor: CGColor? = nil    // override for mini bots
+    /// Color de marca (pastillas de integraciones): tiñe el vidrio en lugar del tinte del usuario.
+    var bodyColor: CGColor? = nil
 
-    // Animation state (mirrors prototype 's' object)
+    // MARK: Entradas del lienzo (se ponen en cada cuadro)
+
+    /// Vista abierta: brazos siempre a la vista y, si la esfera es grande, piernitas con pies.
+    var fullBody: Bool = false
+    /// Apertura que pide el lienzo cuando hay un archivo encima del portal (fracción de R).
+    var portalHover: CGFloat = 0
+    /// `false` si otro lienzo (saludo, subir archivo) tapa a este ORBEX: sus reacciones no suenan.
+    var audible: Bool = true
+
+    // MARK: Animación
+
     var yaw:    CGFloat = 0
     var pitch:  CGFloat = 0
     var roll:   CGFloat = 0
     var tilt:   CGFloat = 0
-    var open:   CGFloat = 1          // eye open amount
-    var sx:     CGFloat = 1          // scale X
-    var sy:     CGFloat = 1          // scale Y
-    var oy:     CGFloat = 0          // offset Y (bounce)
-    var ox:     CGFloat = 0          // offset X (shake)
-    var tint:   CGFloat = 0
-    var morph:  CGFloat = 0          // morph to rect (for upload bucket)
-    var hands:  CGFloat = 0
-    var blush:  CGFloat = 0
-    var es:     CGFloat = 1          // eye scale
-    var badgeS: CGFloat = 0          // badge scale
+    var open:   CGFloat = 1          // párpado (1 = abierto)
+    var sx:     CGFloat = 1          // escala X
+    var sy:     CGFloat = 1          // escala Y
+    var oy:     CGFloat = 0          // salto (fracción de R)
+    var ox:     CGFloat = 0          // sacudida (fracción de R)
+    var tint:   CGFloat = 0          // cuánto tiñe el color del estado
+    var morph:  CGFloat = 0          // 0 = ORBEX, 1 = portal de vidrio (subir archivo)
+    var hands:  CGFloat = 0          // saludo: 0 = brazo en reposo, 1 = brazo derecho arriba
+    var blush:  CGFloat = 0          // el vidrio se entibia (cariño, orgullo)
+    var es:     CGFloat = 1          // escala de los ojos
+    var badgeS: CGFloat = 0          // escala de la insignia
+    var armsUp: CGFloat = 0          // los dos brazos arriba (festejo, estirarse)
+    var glanceX: CGFloat = 0         // mirada extra de los microgestos
+    var glanceY: CGFloat = 0
 
-    // Targets
+    // Objetivos
     var tgYaw:    CGFloat = 0
     var tgPitch:  CGFloat = 0
     var tgTilt:   CGFloat = 0
     var tgSy:     CGFloat = 1
     var tgSx:     CGFloat = 1
-    var tgEs:     CGFloat = 1   // eye-scale target (hover love: 1.08, normal: 1)
+    var tgEs:     CGFloat = 1   // escala de ojos (mouse encima con cariño: 1,08)
+    var tgTint:   CGFloat = 0
 
-    // Particle canvas overhang (extra canvas height at top for hearts to fly into)
+    /// Lienzo extra arriba para que las partículas suban sin cortarse (BotPlacement lo compensa).
     var particleOverhang: CGFloat = 0
 
-    // Mouth spring (fraction of R: 0=closed, 0.20=hover, 0.42=open, 0.50=overopen)
-    var slotH: CGFloat = 0           // current height (fraction of R)
-    var slotHTarget: CGFloat = 0     // spring target
-    var slotHVel: CGFloat = 0        // spring velocity (fraction of R / s)
-    var isChewing: Bool = false       // true for ~800ms after gulp swallow
+    // MARK: Portal (subir archivo)
 
-    // Color (animated)
-    var col:  (CGFloat, CGFloat, CGFloat) = (0.902, 0.914, 0.933)  // idle
+    /// Apertura del portal con resorte (fracción de R: 0 cerrado, 0,20 entreabierto, 0,42 abierto, 0,50 máximo).
+    var slotH: CGFloat = 0
+    var slotHTarget: CGFloat = 0
+    var slotHVel: CGFloat = 0
+    /// ~0,8 s después de tragar: el remolino gira rapidísimo ("mastica").
+    var isChewing: Bool = false
+    /// Giro del remolino (radianes) y su velocidad (rad/s).
+    var swirl: CGFloat = 0
+    var swirlSpeed: CGFloat = 1.4
+    private var gulpOpenUntil: Double = 0
+    private var gulpToken: Int = 0
+    private var rippleStart: Double = -10
+
+    // Color del estado (animado)
+    var col:  (CGFloat, CGFloat, CGFloat) = (0.902, 0.914, 0.933)
     var colT: (CGFloat, CGFloat, CGFloat) = (0.902, 0.914, 0.933)
 
-    // State
+    // Estado
     var state: BotState = .idle
     var cfg: BotStateCfg = BotStates[.idle]!
 
-    // Eye override (emote)
+    // Ojos: expresión pasajera (emote) y permanente
     var eyeOverride: BotEyeShape? = nil
-    var eyeOverrideUntil: Double = 0   // CACurrentMediaTime()
-    var permanentEye: BotEyeShape? = nil   // restored after temporary emote/blink expires
-    var permanentEmote: BotEmote? = nil // stored so doMiniBehaviorLoop can switch on it
-    var miniNextBehavior: Double = 0    // CACurrentMediaTime() of next periodic mini action
+    var eyeOverrideUntil: Double = 0        // CACurrentMediaTime()
+    var permanentEye: BotEyeShape? = nil    // vuelve cuando vence un emote o parpadeo
+    var permanentEmote: BotEmote? = nil     // para el comportamiento periódico de los mini
+    var miniNextBehavior: Double = 0
 
-    // Badge animation
+    // Insignia
     var badge: BadgeType? = nil
     var badgeKey: String = "none"
     var badgeToken: Int = 0
 
-    // Tweens (keyed by property name)
+    // Tweens (por nombre de propiedad)
     var tweens: [String: Tween] = [:]
     var locks:  Set<String> = []
 
-    // Particles
     var particles: [Particle] = []
 
-    // Look target
+    // Mirada (−1…1; la pone el lienzo según el cursor)
     var lookX: CGFloat = 0
     var lookY: CGFloat = 0
 
-    // Timing
+    // Tiempo: todo el motor usa un solo reloj, CACurrentMediaTime()
     var lastTime: Double = CACurrentMediaTime()
     var t0: Double = CACurrentMediaTime() - Double.random(in: 0...5)
-    var nextBlink: Double = CACurrentMediaTime() + 1.5 + Double.random(in: 0...2)
     var waveUntil: Double = 0
-    var waveStart: Double = 0     // CACurrentMediaTime() when wave animation began
-    var greetToken: Int = 0       // incremented to invalidate stale greet closures
+    var waveStart: Double = 0     // cuándo empieza a mover el brazo
+    var greetToken: Int = 0       // invalida los pasos pendientes de un saludo viejo
     var lastAmbient: Double = 0
 
-    // Slap tracking (for dizzy on 3 slaps)
+    // Toques (3 seguidos = mareo)
     var slapTimes: [Double] = []
 
-    // Mini wandering look (random, ignores mouse)
+    // Mini: mirada que pasea al azar
     var miniLookTarget: CGPoint = .zero
     var miniLookNextTime: Double = 0
 
-    // MARK: - Public API
+    // MARK: Vida (respiración, parpadeo, microgestos)
+
+    private var life = LifeScheduler(level: .normal, now: CACurrentMediaTime(),
+                                     seed: UInt64.random(in: 1...UInt64.max))
+    private var gesture: (kind: Microgesture, start: Double)? = nil
+    private var limbs: CGFloat = 0        // 0…1 cuerpo entero (vista abierta), suave
+    private var crouch: CGFloat = 0       // 0…1 agachado (dormido)
+    private var floatY: CGFloat = 0       // flotación leve (fracción de R)
+    private var lastLookInput: Double = 0
+    private var prevLook: CGPoint = .zero
+
+    // MARK: Ambiente (tema, tinte, reducir movimiento): se relee dos veces por segundo
+
+    private(set) var reduceMotion: Bool = false
+    private(set) var material: OrbexMaterial = .glass
+    private var userTint: (r: Double, g: Double, b: Double) = OrbexTint.clear.rgb
+    private var frameTint: (r: Double, g: Double, b: Double) = OrbexTint.clear.rgb
+    private var nextEnvCheck: Double = 0
+
+    // MARK: - API pública
 
     func setState(_ newState: BotState, force: Bool = false) {
         guard state != newState || force else { return }
@@ -268,26 +323,38 @@ final class BotEngine: ObservableObject {
         setTarget(key: "tilt", value: cfg.tilt)
         setBadge(cfg.badge)
 
+        // Sonido del estado: solo en cambios de verdad (no al aparecer la vista) y nunca en los mini.
+        if !force && prev != newState && !isMini, let name = cfg.sound {
+            BotSoundGate.play(name, gap: Self.stateSoundGap(name))
+        }
+
+        let m: CGFloat = reduceMotion ? 0.3 : 1
         switch newState {
         case .finished:
-            doRoll(duration: 950, turns: 1)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.emit(.spark, count: 5)
+            if !reduceMotion { doRoll(duration: 950, turns: 1) }
+            anim("armsUp", keys: [
+                TweenKey(target: 1, duration: 220, ease: Ease.out),
+                TweenKey(target: 1, duration: 700, ease: Ease.lin),
+                TweenKey(target: 0, duration: 320, ease: Ease.inOut),
+            ])
+            after(0.5) { e in
+                e.emit(.spark, count: 5)
+                e.emit(.bubble, count: 3)
             }
         case .error:
             anim("ox", keys: [
-                TweenKey(target: 0.08,  duration: 50,  ease: Ease.out),
-                TweenKey(target: -0.08, duration: 70,  ease: Ease.inOut),
-                TweenKey(target: 0.05,  duration: 70,  ease: Ease.inOut),
-                TweenKey(target: 0,     duration: 90,  ease: Ease.out),
+                TweenKey(target: 0.08 * m,  duration: 50, ease: Ease.out),
+                TweenKey(target: -0.08 * m, duration: 70, ease: Ease.inOut),
+                TweenKey(target: 0.05 * m,  duration: 70, ease: Ease.inOut),
+                TweenKey(target: 0,         duration: 90, ease: Ease.out),
             ])
         case .approval:
             anim("oy", keys: [
-                TweenKey(target: -0.2, duration: 150, ease: Ease.out),
-                TweenKey(target: 0,    duration: 300, ease: Ease.back),
+                TweenKey(target: -0.2 * m, duration: 150, ease: Ease.out),
+                TweenKey(target: 0,        duration: 300, ease: Ease.back),
             ])
         case .dizzy:
-            doRoll(duration: 1300, turns: 2)
+            if !reduceMotion { doRoll(duration: 1300, turns: 2) }
         case .question:
             blink()
         case .ratelimit:
@@ -304,11 +371,11 @@ final class BotEngine: ObservableObject {
         let tok = badgeToken + 1
         badgeToken = tok
         anim("badgeS", keys: [TweenKey(target: 0, duration: 90, ease: Ease.inOut)])
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self, tok == self.badgeToken else { return }
-            self.badge = b
+        after(0.1) { e in
+            guard tok == e.badgeToken else { return }
+            e.badge = b
             if b != nil {
-                self.anim("badgeS", keys: [TweenKey(target: 1, duration: 280, ease: Ease.back)])
+                e.anim("badgeS", keys: [TweenKey(target: 1, duration: 280, ease: Ease.back)])
             }
         }
     }
@@ -334,32 +401,47 @@ final class BotEngine: ObservableObject {
         ])
     }
 
-    // MARK: - Gulp (mailbox swallow)
+    // MARK: - Tragar por el portal
 
+    /// El portal se abre grande, se cierra tragando (contracción + ondita) y "mastica" (remolino rápido).
+    /// Toda la apertura vive en el motor: el lienzo ya no la pisa en cada cuadro.
     func gulp() {
-        // Open mouth wide for the swallow, then close during chewing
+        gulpToken += 1
+        let tok = gulpToken
+        gulpOpenUntil = CACurrentMediaTime() + 0.46
+        isChewing = false
         slotHTarget = 0.42
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.46) { [weak self] in
-            self?.slotHTarget = 0
-            self?.isChewing = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.80) { [weak self] in
-                self?.isChewing = false
-            }
-        }
         anim("sy", keys: [
-            TweenKey(target: 0.78, duration: 80,  ease: Ease.out),
-            TweenKey(target: 1.18, duration: 130, ease: Ease.out),
-            TweenKey(target: 1,    duration: 220, ease: Ease.back),
-        ])
-        anim("sx", keys: [
-            TweenKey(target: 1.28, duration: 80,  ease: Ease.out),
-            TweenKey(target: 0.92, duration: 130, ease: Ease.out),
-            TweenKey(target: 1,    duration: 220, ease: Ease.back),
+            TweenKey(target: 1.06, duration: 120, ease: Ease.out),
+            TweenKey(target: 1.0,  duration: 340, ease: Ease.inOut),
         ])
         blink()
+        after(0.46) { e in
+            guard e.gulpToken == tok else { return }
+            e.gulpOpenUntil = 0
+            e.isChewing = true
+            e.rippleStart = CACurrentMediaTime()
+            e.anim("sx", keys: [
+                TweenKey(target: 0.84, duration: 90,  ease: Ease.out),
+                TweenKey(target: 1.08, duration: 150, ease: Ease.out),
+                TweenKey(target: 1,    duration: 240, ease: Ease.back),
+            ])
+            e.anim("sy", keys: [
+                TweenKey(target: 0.84, duration: 90,  ease: Ease.out),
+                TweenKey(target: 1.08, duration: 150, ease: Ease.out),
+                TweenKey(target: 1,    duration: 240, ease: Ease.back),
+            ])
+            e.emit(.bubble, count: 3)
+            e.sound("gulp", gap: 0.5)
+            e.after(0.8) { e2 in
+                guard e2.gulpToken == tok else { return }
+                e2.isChewing = false
+                e2.sound("attach", gap: 0.5)
+            }
+        }
     }
 
-    // MARK: - Slap (dizzy mechanic)
+    // MARK: - Toque (tres seguidos = mareo)
 
     func slap() {
         interruptGreet()
@@ -367,28 +449,26 @@ final class BotEngine: ObservableObject {
         let now = CACurrentMediaTime()
         slapTimes = slapTimes.filter { now - $0 < 1.7 }
         slapTimes.append(now)
-        SoundEngine.shared.play("slap")
+        sound("slap", gap: 0.08)
         squash()
         if slapTimes.count >= 3 {
             slapTimes = []
             NotificationCenter.default.post(name: .botDizzy, object: nil)
         } else {
-            // Annoyed: line eyes for 800ms, annoyed sound after 60ms delay
+            // Molesto 0,8 s, con sonidito un instante después.
             eyeOverride = .line
             eyeOverrideUntil = now + 0.8
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                SoundEngine.shared.play("annoyed")
-            }
+            after(0.06) { $0.sound("annoyed", gap: 0.3) }
         }
     }
 
-    // MARK: - Mini periodic behavior loop
+    // MARK: - Comportamiento periódico de los mini
 
     func doMiniBehaviorLoop() {
         switch permanentEmote {
 
         case .happy:
-            // Little jump + squash
+            // Saltito con squash
             guard !locks.contains("oy") else {
                 miniNextBehavior = CACurrentMediaTime() + 0.4
                 return
@@ -413,7 +493,7 @@ final class BotEngine: ObservableObject {
             miniNextBehavior = CACurrentMediaTime() + 2.2 + Double.random(in: 0...1.2)
 
         case .annoyed:
-            // Rapid head shake
+            // Sacude la cabeza
             guard !locks.contains("yaw") else {
                 miniNextBehavior = CACurrentMediaTime() + 0.5
                 return
@@ -429,10 +509,9 @@ final class BotEngine: ObservableObject {
             miniNextBehavior = CACurrentMediaTime() + 3.0 + Double.random(in: 0...2.5)
 
         case .wink:
-            // Brief wink: eye closes, head tilts slightly
-            let now2 = CACurrentMediaTime()
+            // Guiño con la cabeza un poco inclinada
             eyeOverride = .wink
-            eyeOverrideUntil = now2 + 0.55
+            eyeOverrideUntil = CACurrentMediaTime() + 0.55
             anim("tilt", keys: [
                 TweenKey(target:  0.13, duration: 100, ease: Ease.out),
                 TweenKey(target:  0.13, duration: 320, ease: Ease.lin),
@@ -441,7 +520,7 @@ final class BotEngine: ObservableObject {
             miniNextBehavior = CACurrentMediaTime() + 2.2 + Double.random(in: 0...2.0)
 
         case .love:
-            // Emit hearts + gentle sway
+            // Se hamaca suave
             emit(.heart, count: 2)
             anim("tilt", keys: [
                 TweenKey(target: -0.1, duration: 180, ease: Ease.out),
@@ -462,76 +541,74 @@ final class BotEngine: ObservableObject {
         }
     }
 
+    // MARK: - Saludo (brazo derecho arriba + ojos felices + sonido)
+
     func greet() {
         let now = CACurrentMediaTime()
         greetToken += 1
         let tok = greetToken
-        waveStart = now + 0.45   // wave begins at 0.45s
-        waveUntil = now + 1.55   // wave ends at 1.55s
+        waveStart = now + 0.45   // el brazo empieza a moverse
+        waveUntil = now + 1.55   // y termina
+        let m: CGFloat = reduceMotion ? 0.35 : 1
 
-        // 0s: happy eyes for full greeting (2s — no gap, no flicker)
+        // 0 s: ojos felices todo el saludo y saltito
         eyeOverride = .happy
         eyeOverrideUntil = now + 2.0
         anim("oy", keys: [
-            TweenKey(target: -0.06, duration: 220, ease: Ease.out),
-            TweenKey(target:  0.0,  duration: 220, ease: Ease.back),
+            TweenKey(target: -0.06 * m, duration: 220, ease: Ease.out),
+            TweenKey(target:  0.0,      duration: 220, ease: Ease.back),
         ])
 
-        // 0.25s: hands out + body squash + sound
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.anim("hands", keys: [TweenKey(target: 1, duration: 280, ease: Ease.out)])
-            self.anim("sy", keys: [
+        // 0,25 s: sube el brazo, se aplasta un poquito y suena el saludo
+        after(0.25) { e in
+            guard e.greetToken == tok else { return }
+            e.anim("hands", keys: [TweenKey(target: 1, duration: 280, ease: Ease.out)])
+            e.anim("sy", keys: [
                 TweenKey(target: 0.95, duration: 100, ease: Ease.out),
                 TweenKey(target: 1.0,  duration: 260, ease: Ease.back),
             ])
-            self.anim("sx", keys: [
+            e.anim("sx", keys: [
                 TweenKey(target: 1.04, duration: 100, ease: Ease.out),
                 TweenKey(target: 1.0,  duration: 260, ease: Ease.back),
             ])
-            SoundEngine.shared.play("greet")
+            e.sound("greet", gap: 1.0)
         }
-
-        // 0.55s: first blink
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.blink()
+        // 0,55 s y 1,5 s: parpadeos
+        after(0.55) { e in
+            guard e.greetToken == tok else { return }
+            e.blink()
         }
-
-        // 1.50s: second blink
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.50) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.blink()
+        after(1.50) { e in
+            guard e.greetToken == tok else { return }
+            e.blink()
         }
-
-        // 1.55s: retract hands
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.55) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.waveUntil = 0
-            self.anim("hands", keys: [TweenKey(target: 0, duration: 200, ease: Ease.inOut)])
+        // 1,55 s: baja el brazo
+        after(1.55) { e in
+            guard e.greetToken == tok else { return }
+            e.waveUntil = 0
+            e.anim("hands", keys: [TweenKey(target: 0, duration: 200, ease: Ease.inOut)])
         }
-
-        // 1.75s: brief happy eyes then back to normal
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.75) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.eyeOverride = .happy
-            self.eyeOverrideUntil = CACurrentMediaTime() + 0.30
+        // 1,75 s: un toquecito más de ojos felices y vuelve a lo normal
+        after(1.75) { e in
+            guard e.greetToken == tok else { return }
+            e.eyeOverride = .happy
+            e.eyeOverrideUntil = CACurrentMediaTime() + 0.30
         }
     }
 
-    /// Immediately interrupts an in-progress greeting (hands retract in 150 ms).
+    /// Corta un saludo en curso (el brazo baja en 150 ms).
     func interruptGreet() {
         guard hands > 0.01 || CACurrentMediaTime() < waveUntil else { return }
-        greetToken += 1   // invalidate any pending closures
+        greetToken += 1   // invalida los pasos pendientes
         waveUntil = 0
         waveStart = 0
         anim("hands", keys: [TweenKey(target: 0, duration: 150, ease: Ease.inOut)])
     }
 
-    /// Sets a permanent eye expression that survives blinks and transient emotes.
+    /// Expresión permanente que sobrevive a parpadeos y emotes pasajeros.
     func setPermanentEmote(_ emote: BotEmote?) {
         permanentEmote = emote
-        // .wink fires periodically — don't freeze the eye (normal between winks)
+        // .wink es periódico: entre guiño y guiño el ojo queda normal
         if emote == .wink {
             miniNextBehavior = CACurrentMediaTime() + Double.random(in: 0.8...2.5)
             return
@@ -546,7 +623,7 @@ final class BotEngine: ObservableObject {
                 eyeOverrideUntil = 0
             }
         }
-        // Stagger first periodic behavior so bots don't all fire at once
+        // Escalonar el primer comportamiento para que los mini no se muevan todos juntos
         miniNextBehavior = CACurrentMediaTime() + Double.random(in: 0.8...2.5)
     }
 
@@ -554,23 +631,24 @@ final class BotEngine: ObservableObject {
         let now = CACurrentMediaTime()
         eyeOverride = emoteEyeShape(emote)
         eyeOverrideUntil = now + duration
+        let m: CGFloat = reduceMotion ? 0.35 : 1
 
         switch emote {
         case .love:
             anim("blush", keys: [
                 TweenKey(target: 1, duration: 300, ease: Ease.out),
-                TweenKey(target: 1, duration: CGFloat((duration - 0.6) * 1000), ease: Ease.lin),
+                TweenKey(target: 1, duration: holdMs(duration, 0.6), ease: Ease.lin),
                 TweenKey(target: 0, duration: 300, ease: Ease.inOut),
             ])
             emit(.heart, count: 4)
             anim("oy", keys: [
-                TweenKey(target: -0.1, duration: 160, ease: Ease.out),
-                TweenKey(target: 0,    duration: 300, ease: Ease.back),
+                TweenKey(target: -0.1 * m, duration: 160, ease: Ease.out),
+                TweenKey(target: 0,        duration: 300, ease: Ease.back),
             ])
         case .surprised:
             anim("oy", keys: [
-                TweenKey(target: -0.3, duration: 140, ease: Ease.out),
-                TweenKey(target: 0,    duration: 380, ease: Ease.back),
+                TweenKey(target: -0.3 * m, duration: 140, ease: Ease.out),
+                TweenKey(target: 0,        duration: 380, ease: Ease.back),
             ])
             anim("es", keys: [
                 TweenKey(target: 1.25, duration: 120, ease: Ease.out),
@@ -579,33 +657,39 @@ final class BotEngine: ObservableObject {
         case .proud:
             emit(.star, count: 5)
             anim("tilt", keys: [
-                TweenKey(target: -0.14, duration: 220, ease: Ease.out),
-                TweenKey(target: -0.14, duration: CGFloat((duration - 0.5) * 1000), ease: Ease.lin),
-                TweenKey(target: 0,     duration: 280, ease: Ease.inOut),
+                TweenKey(target: -0.14 * m, duration: 220, ease: Ease.out),
+                TweenKey(target: -0.14 * m, duration: holdMs(duration, 0.5), ease: Ease.lin),
+                TweenKey(target: 0,         duration: 280, ease: Ease.inOut),
             ])
             anim("blush", keys: [
                 TweenKey(target: 0.7, duration: 250, ease: Ease.out),
-                TweenKey(target: 0.7, duration: CGFloat((duration - 0.5) * 1000), ease: Ease.lin),
+                TweenKey(target: 0.7, duration: holdMs(duration, 0.5), ease: Ease.lin),
+                TweenKey(target: 0,   duration: 300, ease: Ease.inOut),
+            ])
+            anim("armsUp", keys: [
+                TweenKey(target: 0.8, duration: 220, ease: Ease.out),
+                TweenKey(target: 0.8, duration: holdMs(duration, 0.5), ease: Ease.lin),
                 TweenKey(target: 0,   duration: 300, ease: Ease.inOut),
             ])
         case .wink:
             anim("tilt", keys: [
-                TweenKey(target: 0.12, duration: 160, ease: Ease.out),
-                TweenKey(target: 0.12, duration: CGFloat((duration - 0.4) * 1000), ease: Ease.lin),
-                TweenKey(target: 0,    duration: 240, ease: Ease.inOut),
+                TweenKey(target: 0.12 * m, duration: 160, ease: Ease.out),
+                TweenKey(target: 0.12 * m, duration: holdMs(duration, 0.4), ease: Ease.lin),
+                TweenKey(target: 0,        duration: 240, ease: Ease.inOut),
             ])
         case .yawn:
             anim("sy", keys: [
-                TweenKey(target: 1.12, duration: 500, ease: Ease.inOut),
-                TweenKey(target: 1,    duration: 500, ease: Ease.inOut),
+                TweenKey(target: 1 + 0.12 * m, duration: 500, ease: Ease.inOut),
+                TweenKey(target: 1,            duration: 500, ease: Ease.inOut),
             ])
             anim("sx", keys: [
-                TweenKey(target: 0.94, duration: 500, ease: Ease.inOut),
-                TweenKey(target: 1,    duration: 500, ease: Ease.inOut),
+                TweenKey(target: 1 - 0.06 * m, duration: 500, ease: Ease.inOut),
+                TweenKey(target: 1,            duration: 500, ease: Ease.inOut),
             ])
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
-                self?.eyeOverride = .closed
-                self?.emit(.z, count: 2)
+            after(0.7) { e in
+                guard e.eyeOverride == .tired else { return }
+                e.eyeOverride = .closed
+                e.emit(.z, count: 2)
             }
         case .happy:
             anim("blush", keys: [
@@ -615,42 +699,81 @@ final class BotEngine: ObservableObject {
         case .annoyed:
             eyeOverride = .line
             eyeOverrideUntil = now + 0.8
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                SoundEngine.shared.play("annoyed")
+        }
+
+        guard !silent else { return }
+        if emote == .annoyed {
+            after(0.06) { $0.sound("annoyed", gap: 0.3) }
+        } else if let name = emoteSoundName(emote) {
+            // En el próximo ciclo: si el evento que lo disparó ya sonó por el bus, ORBEX no suma otro sonido.
+            after(0) { e in
+                guard !BotSoundGate.busSounded(within: 0.3) else { return }
+                e.sound(name, gap: 0.9)
             }
         }
     }
 
     func emit(_ type: Particle.ParticleType, count: Int) {
+        guard !isMini, count > 0 else { return }   // los mini no dibujan partículas
         for i in 0..<count {
-            let isZ = type == .z
-            let p = Particle(
+            var p = Particle(
                 type: type,
-                x: (CGFloat.random(in: -0.5...0.5)) * 0.9 + (isZ ? 0.55 : 0),
+                x: CGFloat.random(in: -0.45...0.45),
                 y: -0.7 - CGFloat.random(in: 0...0.2),
-                vx: CGFloat.random(in: -0.5...0.5) * 0.35 + (isZ ? 0.18 : 0),
+                vx: CGFloat.random(in: -0.5...0.5) * 0.35,
                 vy: -(0.45 + CGFloat.random(in: 0...0.35)),
                 age: -Double(i) * 0.14,
                 life: 1.3 + Double.random(in: 0...0.5),
                 rot: CGFloat.random(in: 0...(.pi * 2)),
                 size: 0.15 + CGFloat.random(in: 0...0.08)
             )
+            switch type {
+            case .z:
+                // Suben de costado, arriba a la derecha
+                p.x = 0.55 + CGFloat.random(in: -0.1...0.1)
+                p.vx = 0.18 + CGFloat.random(in: -0.5...0.5) * 0.2
+            case .sweat:
+                // Gotita que resbala por el costado
+                p.x = 0.62 + CGFloat.random(in: -0.05...0.05)
+                p.y = -0.5
+                p.vx = 0.04
+                p.vy = 0.3
+                p.life = 1.1
+            case .spark:
+                // Chispitas de vidrio que saltan alrededor de la cabeza
+                let a = CGFloat.random(in: -CGFloat.pi...0)
+                p.x = cos(a) * 0.85
+                p.y = sin(a) * 0.75 - 0.05
+                p.vx = cos(a) * 0.25
+                p.vy = sin(a) * 0.25 - 0.1
+                p.size = 0.1 + CGFloat.random(in: 0...0.06)
+            case .bubble:
+                // Burbujitas: desde el portal si está armado; si no, desde arriba de la cabeza
+                p.x = CGFloat.random(in: -0.3...0.3)
+                p.y = morph > 0.3 ? CGFloat.random(in: -0.15...0.1) : -0.62
+                p.vx = CGFloat.random(in: -0.06...0.06)
+                p.vy = -(0.35 + CGFloat.random(in: 0...0.25))
+                p.size = 0.07 + CGFloat.random(in: 0...0.06)
+                p.life = 1.1 + Double.random(in: 0...0.5)
+            default:
+                break
+            }
             particles.append(p)
         }
     }
 
-    // MARK: - Update (called every frame from TimelineView)
+    // MARK: - Cuadro (lo llama el TimelineView)
 
     func update(dt: Double) {
         let now = CACurrentMediaTime()
-        let dtCG = CGFloat(dt)
+        refreshEnvironment(now)
 
-        // Process tweens
+        // Tweens
         for key in tweens.keys {
             guard var tw = tweens[key] else { continue }
             let k = tw.keys[tw.keyIndex]
             let elapsed = now * 1000 - tw.startTime
-            let p = min(1, max(0, CGFloat(elapsed) / k.duration))
+            let p = min(1, max(0, CGFloat(elapsed) / max(1, k.duration)))
             let val = tw.from + (k.target - tw.from) * k.ease(p)
             setProperty(key, value: val)
 
@@ -670,23 +793,50 @@ final class BotEngine: ObservableObject {
             }
         }
 
-        // Compute look targets
+        // Vida: parpadeos y microgestos (LifeScheduler de OrbexCore)
+        runLife(now)
+
+        // Mirada
         let t = CGFloat(now - t0)
+        let motion: CGFloat = reduceMotion ? 0.35 : 1
         var ty: CGFloat = lookX * 0.62
         var tp: CGFloat = lookY * 0.5
+
+        if !isMini {
+            // Si el cursor no se mueve hace un rato, la mirada pasea sola (nunca queda clavada).
+            if abs(lookX - prevLook.x) > 0.004 || abs(lookY - prevLook.y) > 0.004 { lastLookInput = now }
+            prevLook = CGPoint(x: lookX, y: lookY)
+            let still = now - lastLookInput
+            if still > 5 {
+                let k = CGFloat(min(1, (still - 5) / 1.5))
+                let lazyX = sin(t * 0.37) * 0.32 + sin(t * 0.13) * 0.14
+                let lazyY = cos(t * 0.23) * 0.12
+                ty += (lazyX * motion - ty) * k
+                tp += (lazyY * motion - tp) * k
+            }
+            ty += glanceX * 0.6
+            tp += glanceY * 0.45
+            if let g = gesture, g.kind == .followDot {
+                let p = min(1, max(0, (now - g.start) / g.kind.duration))
+                let a = CGFloat(p * 4 * .pi)
+                let env = CGFloat(sin(.pi * p))
+                ty += (cos(a) * 0.6 - ty) * env
+                tp += (0.35 - sin(a) * 0.3 - tp) * env
+            }
+        }
 
         if let fixedLook = cfg.look {
             ty = ty * 0.35 + fixedLook.x * 0.55
             tp = tp * 0.3  + fixedLook.y * 0.5
         }
         if cfg.scans {
-            ty = sin(t * 2.6) * 0.6
+            ty = sin(t * 2.6) * 0.6 * motion
             tp = -0.06
         }
         if state == .sleeping { ty = 0; tp = -0.14 }
-        if state == .dizzy    { ty = sin(t * 9) * 0.25 }
+        if state == .dizzy    { ty = sin(t * 9) * 0.25 * motion }
 
-        // Mini bots: override look with random wandering (never follows mouse)
+        // Mini: mirada que pasea al azar (no sigue al mouse)
         if isMini && cfg.look == nil && !cfg.scans && state != .sleeping && state != .dizzy {
             if now > miniLookNextTime {
                 miniLookTarget = CGPoint(
@@ -702,660 +852,591 @@ final class BotEngine: ObservableObject {
         tgYaw   = ty
         tgPitch = tp
         tgTilt  = cfg.tilt
+        if state == .dizzy { tgTilt += sin(t * 5) * 0.09 * motion }
 
-        // Body sway during greeting wave
+        // Balanceo del cuerpo mientras saluda
         if now > waveStart && now < waveUntil {
             let wt = CGFloat(now - waveStart)
-            tgTilt = -0.06 + sin(2 * .pi * 1.2 * wt) * 0.07
+            tgTilt = (-0.06 + sin(2 * .pi * 1.2 * wt) * 0.07) * motion
         }
 
-        let bounce = cfg.bounces ? -abs(sin(t * 5.2)) * 0.07 : CGFloat(0)
-        // oy tween can override if not locked
+        // Rebote (pide permiso) y trotecito en el lugar (trabajando, de cuerpo entero)
+        var bounce: CGFloat = cfg.bounces ? -abs(sin(t * 5.2)) * 0.07 * motion : 0
+        if state == .working && !reduceMotion { bounce -= abs(sin(t * 8)) * 0.018 * limbs }
         if !locks.contains("oy") { oy += (bounce - oy) * CGFloat(1 - pow(0.0008, dt)) }
 
+        // Respiración (siempre; más honda dormido; casi nada con "reducir movimiento") y flotación
         if cfg.breathes {
-            let amp: CGFloat = isMini ? 0.07 : 0.035
+            let amp: CGFloat = isMini ? 0.07 : (reduceMotion ? 0.012 : 0.035)
             tgSy = 1 + sin(t * 1.8) * amp
             tgSx = 1 - sin(t * 1.8) * amp * 0.57
         } else if isMini {
-            // Subtle idle pulse (unique phase per engine via t0)
-            tgSy = 1 + sin(t * 2.2) * 0.04
-            tgSx = 1 - sin(t * 2.2) * 0.02
+            // Pulso sutil (fase propia de cada motor por t0)
+            tgSy = 1 + sin(t * 2.2) * 0.04 * motion
+            tgSx = 1 - sin(t * 2.2) * 0.02 * motion
         } else {
-            tgSy = 1; tgSx = 1
+            let b = CGFloat(LifeScheduler.breathScale(at: Double(t), amplitude: reduceMotion ? 0.006 : 0.02) - 1)
+            tgSy = 1 + b
+            tgSx = 1 - b * 0.6
         }
+        floatY = (isMini || reduceMotion) ? 0 : CGFloat(LifeScheduler.floatOffset(at: Double(t))) * 2
 
-        // Mini bots: periodic dramatic behaviors
+        // Mini: comportamientos periódicos
         if isMini && now > miniNextBehavior {
             doMiniBehaviorLoop()
         }
 
-        // Smooth look
+        // Suavizado
         let kLook = CGFloat(1 - pow(0.0025, dt))
         let kGen  = CGFloat(1 - pow(0.0008, dt))
+        let kCol  = CGFloat(1 - pow(0.002, dt))
 
         if !locks.contains("yaw")   { yaw   += (tgYaw   - yaw)   * kLook }
-        if !locks.contains("pitch") { pitch += (tgPitch  - pitch) * kLook }
-        if !locks.contains("tilt")  { tilt  += (tgTilt   - tilt)  * kGen  }
-        if !locks.contains("sy")    { sy    += (tgSy     - sy)    * kGen  }
-        if !locks.contains("sx")    { sx    += (tgSx     - sx)    * kGen  }
-        if !locks.contains("es")    { es    += (tgEs     - es)    * kGen  }
+        if !locks.contains("pitch") { pitch += (tgPitch - pitch) * kLook }
+        if !locks.contains("tilt")  { tilt  += (tgTilt  - tilt)  * kGen  }
+        if !locks.contains("sy")    { sy    += (tgSy    - sy)    * kGen  }
+        if !locks.contains("sx")    { sx    += (tgSx    - sx)    * kGen  }
+        if !locks.contains("es")    { es    += (tgEs    - es)    * kGen  }
+        if !locks.contains("tint")  { tint  += (tgTint  - tint)  * kCol  }
+        col = mix3(col, colT, kCol)
 
-        // Animate color
-        col = mixColor(col, colT, 1 - pow(0.002, dt))
-
-        // Blink
-        if now > nextBlink {
-            if state != .sleeping && state != .dizzy {
-                blink()
-                if Double.random(in: 0...1) < 0.22 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.23) { [weak self] in self?.blink() }
-                }
-            }
-            nextBlink = now + 2.2 + Double.random(in: 0...3.2)
-        }
-
-        // Clear expired eye override (restore permanent if set)
+        // Emote vencido: vuelve la expresión permanente (si hay)
         if eyeOverride != nil && now > eyeOverrideUntil {
             eyeOverride = permanentEye
             if permanentEye != nil { eyeOverrideUntil = .greatestFiniteMagnitude }
         }
 
-        // Ambient particles
+        // Partículas de ambiente
         if now - lastAmbient > 1.3 {
             lastAmbient = now
-            if cfg.zz { emit(.z, count: 1) }   // ZZZ works for mini too
-            if !isMini && cfg.sweat && Double.random(in: 0...1) < 0.5 { emit(.sweat, count: 1) }
+            if cfg.zz { emit(.z, count: 1) }
+            if cfg.sweat && Double.random(in: 0...1) < 0.5 { emit(.sweat, count: 1) }
+            if state == .thinking && Double.random(in: 0...1) < 0.35 { emit(.bubble, count: 1) }
         }
-
-        // Age particles
         for i in particles.indices { particles[i].age += dt }
         particles.removeAll { $0.age >= $0.life }
 
-        // Mouth slot spring — ω₀ ≈ 25 rad/s (T=0.25s), ζ=0.6 (underdamped, slight clack)
-        let slotOmega: CGFloat = 2 * .pi / 0.25
-        let slotZeta: CGFloat = 0.6
-        let slotAcc = slotOmega * slotOmega * (slotHTarget - slotH)
-                    - 2 * slotZeta * slotOmega * slotHVel
-        slotHVel += slotAcc * dtCG
-        slotH = max(0, slotH + slotHVel * dtCG)
+        // Cuerpo entero (vista abierta) y agachada (dormido), con transición suave
+        let wantLimbs: CGFloat = (fullBody && !isMini) ? 1 : 0
+        limbs += (wantLimbs - limbs) * CGFloat(1 - exp(-dt * 9))
+        let wantCrouch: CGFloat = state == .sleeping ? 1 : 0
+        crouch += (wantCrouch - crouch) * CGFloat(1 - exp(-dt * 3))
 
+        updatePortal(now: now, dt: dt)
+        frameTint = computeTint()
         lastTime = now
     }
 
-    // MARK: - Draw
+    // MARK: - Dibujo
 
+    /// Cuerpo (esfera de vidrio o mini), portal y ojos.
     func draw(context: GraphicsContext, size: CGSize) {
-        let W = size.width
-        let H = size.height
-        let R = W * 0.3
-        let rx = R * 1.14
-        let ry = R * 0.88
-
-        let cx = W / 2 + ox * R
-        // particleOverhang shifts the bot body down in canvas coords so hearts can fly into
-        // the extended canvas above without clipping (BotPlacement compensates with position offset)
-        let cy = H / 2 + particleOverhang / 2 + oy * R + R * 0.06
-
-        var ctx = context
-        ctx.translateBy(x: cx, y: cy)
-        if tilt != 0 { ctx.rotate(by: .radians(tilt)) }
-        ctx.scaleBy(x: sx, y: sy)
-
-        // Body path (superellipse for ORBEX, morph to rect for upload)
-        let bodyPath = bodyShapePath(rx: rx, ry: ry, morph: morph, R: R)
-
-        // Body fill
-        drawBody(ctx: &ctx, path: bodyPath, R: R, rx: rx, ry: ry)
-
-        // Blush — always shows a floor proportional to tint (prototype behaviour)
-        let blushVal = max(blush, tint * 0.5) * (1 - morph)
-        if blushVal > 0.01 {
-            drawBlush(ctx: &ctx, path: bodyPath, rx: rx, ry: ry, R: R, blush: blushVal)
-        }
-
-        // Eyes
-        drawEyes(ctx: &ctx, path: bodyPath, R: R, rx: rx, ry: ry)
-
-        // Mouth hole — dark pill cutout inside the box face
-        // Spec: left/right margins 0.10R, top margin 0.08R from box top (-0.94R)
-        if morph > 0.05 {
-            let hW = R * 1.80 * morph   // hole width = box width (2×1.0R) − 2×0.10R margin
-            let hH = slotH * R * morph  // hole height (spring-animated, scaled by morph)
-            let hX = -hW / 2
-            // Hole Y: box top is -R*0.94 at morph=1, lerped from -R*0.88 at morph=0
-            let boxTop = -R * (0.88 + 0.06 * morph)
-            let hY = boxTop + R * 0.08 * morph  // top margin scales with morph
-
-            var boxCtx = ctx
-            boxCtx.clip(to: bodyPath)  // everything clipped inside body
-
-            // Top rim — 1pt white 55% line at box top edge
-            var rim = Path()
-            rim.move(to: CGPoint(x: -R * 0.90 * morph, y: boxTop + 1))
-            rim.addLine(to: CGPoint(x: R * 0.90 * morph, y: boxTop + 1))
-            boxCtx.stroke(rim, with: .color(Color.white.opacity(0.55 * Double(morph))),
-                          style: StrokeStyle(lineWidth: 1, lineCap: .round))
-
-            // Hole interior — only draw if visibly open
-            if hH > 0.8 {
-                let hR = min(hW / 2, hH / 2)  // fully rounded when hH < hW (pill shape)
-                var hole = Path()
-                hole.addRoundedRect(in: CGRect(x: hX, y: hY, width: hW, height: hH),
-                                    cornerSize: CGSize(width: hR, height: hR))
-                boxCtx.fill(hole, with: .linearGradient(
-                    Gradient(colors: [Color(red: 0.027, green: 0.031, blue: 0.039),
-                                      Color(red: 0.063, green: 0.075, blue: 0.102)]),
-                    startPoint: CGPoint(x: 0, y: hY),
-                    endPoint: CGPoint(x: 0, y: hY + hH)
-                ))
-                // Bottom lip — 1pt white 28% highlight
-                if hH > 4 {
-                    let lipR = min(hR, (hW - 2) / 2)
-                    var lip = Path()
-                    lip.move(to: CGPoint(x: hX + lipR, y: hY + hH - 0.5))
-                    lip.addLine(to: CGPoint(x: hX + hW - lipR, y: hY + hH - 0.5))
-                    boxCtx.stroke(lip, with: .color(Color.white.opacity(0.28 * Double(morph))),
-                                  style: StrokeStyle(lineWidth: 1, lineCap: .round))
-                }
-            }
-        }
-
-        // Reset transform for hands, badge, particles which need world coords
-        // (We'll pass world-space cx/cy to these helpers)
-    }
-
-    // MARK: - Draw hands behind body (called before draw() so hands appear under ORBEX)
-
-    func drawHandsBehind(context: GraphicsContext, size: CGSize) {
-        guard hands > 0.01, !isMini else { return }
-        let W = size.width, H = size.height
-        let R = W * 0.3
-        // Only draw hands when ORBEX is large enough to be meaningful (not compact/peek)
-        guard R > 14 else { return }
-        let rx = R * 1.14
-        let ry = R * 0.88
-        let cx = W / 2 + ox * R
-        let cy = H / 2 + particleOverhang / 2 + oy * R + R * 0.06
-
+        let g = geo(size)
+        let R = g.R
+        let D = 2 * R
         let now = CACurrentMediaTime()
-        let bodyH = 2 * ry   // full body height
 
-        // Hand ellipse half-dims: 0.30×bodyH wide, 0.26×bodyH tall (scaled by hands 0→1)
-        let hew = 0.30 * ry * hands   // half-width
-        let heh = 0.26 * ry * hands   // half-height
+        var ctx = bodyContext(context, g: g)
 
-        // Body half-dims with current squash scale
-        let hwB = rx * sx
-        let hhB = ry * sy
-
-        let isWaving = now >= waveStart && waveStart > 0 && now < waveUntil
-
-        for sd in [-1.0, 1.0] {
-            var localX: CGFloat
-            var localY: CGFloat
-            var handRot: CGFloat = 0
-
-            if sd > 0 && isWaving {
-                // Right hand: rise to wave position over first 180ms, then oscillate
-                let wt = CGFloat(now - waveStart)
-                let rise = min(1.0, wt / 0.18)
-                let riseEased: CGFloat = 1 - pow(1 - rise, 3)   // easeOut cubic
-
-                // Rest position is lower-side; wave position is upper-side (at eye height)
-                let restX: CGFloat = hwB * 1.08
-                let restY: CGFloat = hhB * 0.70
-                let oscX = cos(13 * wt) * 0.06 * bodyH
-                let oscY = -sin(13 * wt) * 0.14 * bodyH
-                let waveX: CGFloat = hwB * 1.10 + oscX
-                let waveY: CGFloat = -hhB * 0.15 + oscY
-                localX = restX + (waveX - restX) * riseEased
-                localY = restY + (waveY - restY) * riseEased
-                handRot = (-0.5 + sin(13 * wt) * 0.35) * riseEased
-
-            } else if sd < 0 && isWaving {
-                // Left hand: gentle sway at rest position
-                let wt = CGFloat(now - waveStart)
-                localX = -hwB * 1.08
-                localY = hhB * 0.70 + sin(6 * wt) * 0.04 * bodyH
-
-            } else {
-                // Rest: lower-side, clearly peeking behind body bottom
-                localX = CGFloat(sd) * hwB * 1.08
-                localY = hhB * 0.70
-            }
-
-            // Apply body tilt to get world position
-            let cosT = cos(tilt), sinT = sin(tilt)
-            let worldX = cx + cosT * localX - sinT * localY
-            let worldY = cy + sinT * localX + cosT * localY
-
-            // Draw
-            var handCtx = context
-            handCtx.translateBy(x: worldX, y: worldY)
-            if handRot != 0 { handCtx.rotate(by: .radians(handRot)) }
-
-            let handRect = CGRect(x: -hew, y: -heh, width: hew * 2, height: heh * 2)
-            var handPath = Path()
-            handPath.addEllipse(in: handRect)
-
-            // Fill with body material (same gradient as body)
-            if let bc = bodyColor {
-                let c0 = mix3(cgColorToTuple(bc), (1, 1, 1), 0.35)
-                let c1 = cgColorToTuple(bc)
-                handCtx.fill(handPath, with: .linearGradient(
-                    Gradient(colors: [colorFromTuple(c0), colorFromTuple(c1)]),
-                    startPoint: CGPoint(x: hew * 0.7, y: -heh * 0.85),
-                    endPoint: CGPoint(x: -hew * 0.8, y: heh * 0.9)
-                ))
-            } else {
-                let c0 = cgColorToTuple(BotConst.baseTop)
-                let c1 = cgColorToTuple(BotConst.baseBottom)
-                handCtx.fill(handPath, with: .linearGradient(
-                    Gradient(colors: [colorFromTuple(c0), colorFromTuple(c1)]),
-                    startPoint: CGPoint(x: hew * 0.7, y: -heh * 0.85),
-                    endPoint: CGPoint(x: -hew * 0.8, y: heh * 0.9)
-                ))
-            }
-
-            // Subtle separation border — rgba(0,0,0,0.08) 1pt
-            handCtx.stroke(handPath, with: .color(Color.black.opacity(0.08)), lineWidth: 1)
-        }
-    }
-
-    func drawHandsAndExtras(context: GraphicsContext, size: CGSize) {
-        let W = size.width
-        let H = size.height
-        let R = W * 0.3
-        let rx = R * 1.14
-        let ry = R * 0.88
-        let cx = W / 2 + ox * R
-        let cy = H / 2 + particleOverhang / 2 + oy * R + R * 0.06
-
-        // Badge — hidden while morphing to mailbox
-        if let badge = badge, badgeS > 0.01, morph < 0.25 {
-            drawBadge(context: context, size: size, badge: badge, R: R, rx: rx, ry: ry, cx: cx, cy: cy)
-        }
-
-        // Particles
-        drawParticles(context: context, size: size, R: R, cx: cx, cy: cy)
-    }
-
-    // MARK: - Private draw helpers
-
-    private func bodyShapePath(rx: CGFloat, ry: CGFloat, morph: CGFloat, R: CGFloat) -> Path {
-        let n = 72
-        let expN: CGFloat = 2.0 / 2.7
-        // Target mailbox dims (spec: 1.0R wide, 0.94R tall, 0.42R corner radius)
-        let tw = R * 1.0
-        let th = R * 0.94
-        let tr = R * 0.42
-        var path = Path()
-        for i in 0...n {
-            let a = CGFloat(i) / CGFloat(n) * .pi * 2
-            let ca = cos(a), sa = sin(a)
-            let px0 = rx * (ca >= 0 ? pow(ca, expN) : -pow(-ca, expN))
-            let py0 = ry * (sa >= 0 ? pow(sa, expN) : -pow(-sa, expN))
-            let px: CGFloat
-            let py: CGFloat
-            if morph < 0.005 {
-                px = px0; py = py0
-            } else {
-                let rr = rrPoint(ca: ca, sa: sa, W: tw, H: th, cr: tr)
-                px = lerp(px0, rr.x, morph)
-                py = lerp(py0, rr.y, morph)
-            }
-            if i == 0 { path.move(to: CGPoint(x: px, y: py)) }
-            else { path.addLine(to: CGPoint(x: px, y: py)) }
-        }
-        path.closeSubpath()
-        return path
-    }
-
-    /// Ray-rounded-rect intersection: find the point on the rounded rect boundary in direction (ca, sa).
-    private func rrPoint(ca: CGFloat, sa: CGFloat, W: CGFloat, H: CGFloat, cr: CGFloat) -> CGPoint {
-        let eps: CGFloat = 1e-6
-        let kx: CGFloat = ca >= 0 ? 1 : -1
-        let ky: CGFloat = sa >= 0 ? 1 : -1
-        let cx = kx * (W - cr)
-        let cy = ky * (H - cr)
-
-        // Try corner arc
-        let dot  = ca * cx + sa * cy
-        let disc = dot * dot - (cx*cx + cy*cy - cr*cr)
-        if disc >= 0 {
-            let t = dot + sqrt(disc)
-            if t > eps {
-                let px = ca * t, py = sa * t
-                if abs(px) >= W - cr - eps && abs(py) >= H - cr - eps {
-                    return CGPoint(x: px, y: py)
-                }
-            }
-        }
-
-        // Horizontal edge |y| = H
-        if abs(sa) > eps {
-            let t = (ky * H) / sa
-            if t > eps {
-                let x = ca * t
-                if abs(x) <= W - cr + eps { return CGPoint(x: x, y: ky * H) }
-            }
-        }
-        // Vertical edge |x| = W
-        if abs(ca) > eps {
-            let t = (kx * W) / ca
-            if t > eps {
-                let y = sa * t
-                if abs(y) <= H - cr + eps { return CGPoint(x: kx * W, y: y) }
-            }
-        }
-
-        return CGPoint(x: kx * W, y: ky * H)
-    }
-
-    private func drawBody(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
-        if let bc = bodyColor {
-            // Mini bots: flat solid fill — no gradient, no reflection, no highlight
-            ctx.fill(path, with: .color(Color(cgColor: bc)))
+        if isMini {
+            // Mini: cuenta de vidrio del color de marca, con el borde del color del estado
+            let idle = state == .idle
+            let rim: (r: Double, g: Double, b: Double) = idle ? (r: 1, g: 1, b: 1) : rgbTuple(cfg.color)
+            OrbexPainter.drawMiniBody(&ctx, D: D, tint: frameTint, rim: rim, rimAlpha: idle ? 0.35 : 0.95)
         } else {
-            // Main bot: linear gradient body
-            let c0 = cgColorToTuple(BotConst.baseTop)
-            let c1 = cgColorToTuple(BotConst.baseBottom)
-            ctx.fill(path, with: .linearGradient(
-                Gradient(colors: [colorFromTuple(c0), colorFromTuple(c1)]),
-                startPoint: CGPoint(x: rx*0.7, y: -ry*0.85),
-                endPoint: CGPoint(x: -rx*0.8, y: ry*0.9)
-            ))
-            // State tint — fades out as morph increases (mailbox has no tint)
-            let effectiveTint = tint * (1 - morph)
-            if effectiveTint > 0.01 {
-                let tc = colorFromTuple(col)
-                ctx.fill(path, with: .linearGradient(
-                    Gradient(stops: [
-                        .init(color: tc.opacity(Double(0.72 * effectiveTint)), location: 0),
-                        .init(color: tc.opacity(0), location: 1)
-                    ]),
-                    startPoint: CGPoint(x: 0, y: ry),
-                    endPoint: CGPoint(x: 0, y: -ry)
-                ))
+            OrbexPainter.drawBody(&ctx, D: D, tint: frameTint, material: material)
+            if material == .glass {
+                OrbexPainter.drawInnerLight(&ctx, D: D, tint: frameTint, alpha: 0.26)
             }
-            // Shadow rim
-            ctx.fill(path, with: .radialGradient(
-                Gradient(stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .clear, location: 0.6),
-                    .init(color: Color.black.opacity(0.2), location: 1)
-                ]),
-                center: .zero, startRadius: R*0.15, endRadius: R*1.25
-            ))
-            // Highlight
-            ctx.fill(path, with: .radialGradient(
-                Gradient(stops: [
-                    .init(color: Color.white.opacity(0.55), location: 0),
-                    .init(color: .clear, location: 1)
-                ]),
-                center: CGPoint(x: rx*0.34, y: -ry*0.46),
-                startRadius: 0,
-                endRadius: R*0.42
-            ))
+            if blush > 0.01 {
+                OrbexPainter.drawWarmth(&ctx, D: D, amount: Double(blush))
+            }
+            // Portal de vidrio (subir archivo)
+            if morph > 0.02 {
+                OrbexPainter.drawPortal(&ctx, D: D, hole: portalHole(R), swirl: Double(swirl),
+                                        tint: frameTint, strength: Double(min(1, morph * 1.4)))
+            }
+            // Ondita del trago
+            let ra = now - rippleStart
+            if ra >= 0 && ra < 0.6 {
+                OrbexPainter.drawRipple(&ctx, from: max(portalHole(R), R * 0.2), to: R * 1.3,
+                                        k: ra / 0.6, tint: frameTint, D: D)
+            }
         }
+
+        drawEyes(ctx, R: R, now: now)
     }
 
-    private func drawBlush(ctx: inout GraphicsContext, path: Path, rx: CGFloat, ry: CGFloat, R: CGFloat, blush: CGFloat) {
-        ctx.clip(to: path)
-        let yOffset = sin(yaw) * rx * 0.8
+    /// Detrás del cuerpo: halo del estado y, de cuerpo entero, reflejo en el piso y piernitas.
+    func drawHandsBehind(context: GraphicsContext, size: CGSize) {
+        guard !isMini else { return }
+        let g = geo(size)
+        let R = g.R
+        let D = 2 * R
+        let now = CACurrentMediaTime()
+        var ctx = context
+
+        // Halo suave del color del estado (late si pide atención; con un archivo encima se enciende)
+        var glowRGB = rgbTuple(cfg.glow)
+        if morph > 0.01 { glowRGB = mixRGB(glowRGB, frameTint, Double(min(1, morph))) }
+        var a = Double(cfg.glowOpacity) * 0.5
+        if (state == .approval || state == .question) && !reduceMotion { a *= 0.75 + 0.25 * sin(now * 4) }
+        if portalHover > 0.01 { a = max(a, 0.4) }
+        if a > 0.01 {
+            OrbexPainter.drawHalo(&ctx, center: CGPoint(x: g.cx, y: g.cy), radius: R * 1.55,
+                                  color: glowRGB, alpha: a)
+        }
+
+        // Piernitas y pies: solo de cuerpo entero (vista abierta y esfera grande)
+        guard g.legs > 0.02 else { return }
+        var legs = ctx
+        legs.opacity = Double(min(1, g.legs * 1.5))
+        let hop = max(0, -(oy + floatY)) * R
+        let shrink = max(0.4, 1 - hop / D * 2)
+        OrbexPainter.drawFloorGlow(&legs, center: CGPoint(x: g.cx, y: g.restY + 1.4 * R),
+                                   width: 1.8 * R * shrink, height: 0.16 * R * shrink,
+                                   alpha: 0.10 * Double(shrink))
+        let walking = state == .working && !reduceMotion
+        let step = walking ? sin((now - t0) * 8) : 0
         for sd in [-1.0, 1.0] {
-            let bx = CGFloat(sd) * rx * 0.55 + yOffset
-            let by = ry * 0.2
-            var ellipse = Path()
-            ellipse.addEllipse(in: CGRect(x: bx - R*0.17, y: by - R*0.1, width: R*0.34, height: R*0.2))
-            ctx.fill(ellipse, with: .color(Color(red: 1, green: 0.471, blue: 0.588, opacity: Double(0.5 * blush))))
+            let lift = CGFloat(max(0, sd < 0 ? step : -step) * 0.05) * D
+            let footY = g.hopY + (0.68 + 0.62 * g.legs) * R - lift
+            OrbexPainter.drawLeg(&legs, side: sd, bodyCenter: CGPoint(x: g.cx, y: g.cy), footY: footY,
+                                 D: D, tint: frameTint, crouch: Double(crouch), material: material)
         }
     }
 
-    private func drawEyes(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
+    /// Delante del cuerpo: brazos-gota, puntito imaginario, insignia y partículas.
+    func drawHandsAndExtras(context: GraphicsContext, size: CGSize) {
+        let g = geo(size)
+        let now = CACurrentMediaTime()
+
+        if !isMini {
+            drawArms(context, g: g, now: now)
+            if let gs = gesture, gs.kind == .followDot {
+                drawImaginaryDot(context, g: g, progress: (now - gs.start) / gs.kind.duration)
+            }
+        }
+
+        // Insignia (se esconde mientras es portal)
+        if let badge = badge, badgeS > 0.01, morph < 0.25 {
+            drawBadge(context, badge: badge, g: g, now: now)
+        }
+
+        drawParticles(context, g: g)
+    }
+
+    // MARK: - Partes (privado)
+
+    /// Medidas del cuadro. R = radio de la esfera.
+    private struct Geo {
+        let R: CGFloat
+        let cx: CGFloat
+        let cy: CGFloat      // centro del cuerpo (saltos, flotación y agachada incluidos)
+        let hopY: CGFloat    // centro del cuerpo sin la agachada (los pies siguen al salto)
+        let restY: CGFloat   // centro del cuerpo quieto (el piso queda en restY + 1,4 R)
+        let legs: CGFloat    // 0…1 piernitas visibles
+        let arms: CGFloat    // 0…1 brazos visibles (vista abierta)
+    }
+
+    private func geo(_ size: CGSize) -> Geo {
+        let R = size.width * 0.3
+        let big = !isMini && R >= BotConst.limbsMinR
+        let legs = big ? limbs * (1 - morph) : 0
+        let arms = isMini ? 0 : limbs * (1 - morph)
+        // particleOverhang baja el cuerpo en el lienzo para que las partículas suban sin cortarse.
+        // Con piernitas, el cuerpo sube un poco para que todo el personaje quede centrado.
+        let restY = size.height / 2 + particleOverhang / 2 + R * 0.06 - R * 0.2 * legs
+        let hopY = restY + (oy + floatY) * R
+        let cy = hopY + crouch * 0.26 * R * legs
+        return Geo(R: R, cx: size.width / 2 + ox * R, cy: cy, hopY: hopY, restY: restY, legs: legs, arms: arms)
+    }
+
+    /// Contexto del cuerpo: centro, inclinación y squash & stretch (parado se aplasta desde los pies).
+    private func bodyContext(_ context: GraphicsContext, g: Geo) -> GraphicsContext {
+        var ctx = context
+        ctx.translateBy(x: g.cx, y: g.cy)
+        if tilt != 0 { ctx.rotate(by: .radians(tilt)) }
+        let anchor = g.R * g.legs
+        ctx.translateBy(x: 0, y: anchor)
+        ctx.scaleBy(x: sx, y: sy)
+        ctx.translateBy(x: 0, y: -anchor)
+        return ctx
+    }
+
+    private func portalHole(_ R: CGFloat) -> CGFloat {
+        min(0.62 * R, R * morph * (0.1 + slotH))
+    }
+
+    private func drawEyes(_ base: GraphicsContext, R: CGFloat, now: Double) {
         var shape = eyeOverride ?? cfg.eye
-        // In box mode: cup eyes when file over box (slotHTarget set), happy arcs while chewing
+        // Portal: ojos con ganas si hay un archivo encima, felices mientras "mastica"
         if morph > 0.5 {
             if isChewing { shape = .happy }
             else if slotHTarget > 0.05 || slotH > 0.10 { shape = .cup }
         }
-        ctx.clip(to: path)
+        var ctx = base
+        ctx.clip(to: Path(ellipseIn: CGRect(x: -R, y: -R, width: 2 * R, height: 2 * R)))
+
+        // En tamaño chico (compacto, mini) los ojos crecen y se redondean para que se lean.
+        let small = min(1, max(0, (22 - R) / 14))
+        let growW: CGFloat = 1 + small * (isMini ? 0.8 : 0.6)
+        let growH: CGFloat = 1 + small * 0.35
+        let shrink = 1 - 0.28 * morph
+        let w = max(1.4, R * BotConst.eyeW * es * growW * shrink)
+        let h = max(2.2, R * BotConst.eyeH * es * growH * shrink)
+        let spread = BotConst.eyeSp * (isMini ? 1.12 : 1)
+        let ink = Color(cgColor: isMini ? BotConst.miniInk : BotConst.ink)
+        // A través del vidrio se ven apenas los ojos cuando pasan por atrás (vueltas, mareo)
+        let seeThrough = material == .glass && !isMini
 
         for sd in [-1.0, 1.0] {
-            let eyeYaw   = CGFloat(sd) * BotConst.eyeSp + yaw
-            var eyePitch = BotConst.eyeP + pitch + roll
-            // Wrap pitch for roll-through effect
-            eyePitch = ((eyePitch + .pi).truncatingRemainder(dividingBy: .pi*2) + .pi*2).truncatingRemainder(dividingBy: .pi*2) - .pi
+            let side = CGFloat(sd)
+            let eyeYaw = side * spread + yaw
+            var eyePitch = BotConst.eyeP + pitch + roll + morph * 0.7
+            eyePitch = ((eyePitch + .pi).truncatingRemainder(dividingBy: .pi * 2) + .pi * 2)
+                .truncatingRemainder(dividingBy: .pi * 2) - .pi
+            let cYaw = cos(eyeYaw)
+            let cPitch = cos(eyePitch)
+            let front = cYaw * cPitch > 0.04
+            guard front || seeThrough else { continue }
 
-            let cp = cos(eyePitch)
-            guard cos(eyeYaw) * cp > 0.04 else { continue }  // behind head
-
-            let ex = sin(eyeYaw) * cp * rx
-            let ey = -sin(eyePitch) * ry + (morph > 0 ? ry * 0.14 * morph : 0)
-
-            let fx = lerp(max(0.18, cos(eyeYaw)), 1, morph * 0.7)
-            let fy = lerp(max(0.18, cp),          1, morph * 0.7)
-
-            let eyeMult: CGFloat = isMini ? 1.9 : 1.0
-            let ew = R * BotConst.eyeW * es * eyeMult
-            let eh = R * BotConst.eyeH * es * eyeMult
-
-            var eyeCtx = ctx
-            eyeCtx.translateBy(x: ex, y: ey)
-            eyeCtx.scaleBy(x: fx, y: fy)
-            drawEyeShape(ctx: &eyeCtx, shape: shape, w: ew, h: eh, open: open, sd: CGFloat(sd), R: R)
+            var e = ctx
+            e.translateBy(x: sin(eyeYaw) * cPitch * R, y: -sin(eyePitch) * R)
+            e.scaleBy(x: max(0.18, abs(cYaw)), y: max(0.18, abs(cPitch)))
+            if !front { e.opacity = 0.16 }
+            OrbexPainter.drawEye(&e, shape: shape, w: w, h: h, open: open, side: side,
+                                 t: now, detail: front && w >= 2.2, ink: ink)
         }
     }
 
-    private func drawEyeShape(ctx: inout GraphicsContext, shape: BotEyeShape, w: CGFloat, h: CGFloat, open: CGFloat, sd: CGFloat, R: CGFloat) {
-        let ink = isMini ? Color(cgColor: BotConst.miniInk) : Color(cgColor: BotConst.ink)
-        let now = CGFloat(CACurrentMediaTime())
+    /// Brazos-gota: en la vista abierta siempre; en compacto solo aparece el que saluda.
+    private func drawArms(_ context: GraphicsContext, g: Geo, now: Double) {
+        let rightVis = max(g.arms, hands * (1 - morph))
+        let leftVis = g.arms
+        guard rightVis > 0.01 || leftVis > 0.01 else { return }
+        let D = 2 * g.R
+        let t = now - t0
+        let ctx = bodyContext(context, g: g)
 
-        switch shape {
-        case .wide:
-            drawEyeShape(ctx: &ctx, shape: .pill, w: w*1.16, h: h*1.12, open: open, sd: sd, R: R)
-
-        case .pill:
-            let hh = max(h * open, w * 0.3)
-            var p = Path()
-            p.addRoundedRect(in: CGRect(x: -w/2, y: -hh/2, width: w, height: hh),
-                             cornerSize: CGSize(width: min(w/2, hh/2), height: min(w/2, hh/2)))
-            ctx.fill(p, with: .color(ink))
-
-        case .dot:
-            var p = Path()
-            p.addEllipse(in: CGRect(x: -w*0.45, y: -w*0.45, width: w*0.9, height: w*0.9))
-            ctx.fill(p, with: .color(ink))
-
-        case .line:
-            ctx.rotate(by: .radians(-sd * 0.2))
-            var p = Path()
-            p.addRoundedRect(in: CGRect(x: -w*0.78, y: -w*0.21, width: w*1.56, height: w*0.42),
-                             cornerSize: CGSize(width: w*0.21, height: w*0.21))
-            ctx.fill(p, with: .color(ink))
-
-        case .flat:
-            var p = Path()
-            p.addRoundedRect(in: CGRect(x: -w*0.72, y: -w*0.2, width: w*1.44, height: w*0.4),
-                             cornerSize: CGSize(width: w*0.2, height: w*0.2))
-            ctx.fill(p, with: .color(ink))
-
-        case .happy:
-            var p = Path()
-            p.addArc(center: CGPoint(x: 0, y: h*0.18), radius: w*0.82,
-                     startAngle: .degrees(180 + 12), endAngle: .degrees(180 - 12), clockwise: true)
-            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w*0.5, lineCap: .round))
-
-        case .closed:
-            var p = Path()
-            p.addArc(center: CGPoint(x: 0, y: -h*0.08), radius: w*0.78,
-                     startAngle: .degrees(15), endAngle: .degrees(165), clockwise: false)
-            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w*0.36, lineCap: .round))
-
-        case .spiral:
-            var p = Path()
-            var a: CGFloat = 0
-            while a < 4.4 * .pi {
-                let r  = w * 0.06 + a * w * 0.058
-                let aa = a + now * 9 * sd
-                let px = cos(aa) * r
-                let py = sin(aa) * r
-                if a == 0 { p.move(to: CGPoint(x: px, y: py)) }
-                else { p.addLine(to: CGPoint(x: px, y: py)) }
-                a += 0.2
+        let waving = waveStart > 0 && now >= waveStart && now < waveUntil
+        let wt = now - waveStart
+        let swing = reduceMotion ? 0.35 : 1.0
+        for sd in [-1.0, 1.0] {
+            let vis = sd > 0 ? rightVis : leftVis
+            guard vis > 0.01 else { continue }
+            var raise = restRaise(side: sd, t: t)
+            raise += (2.5 - raise) * Double(armsUp)
+            if sd > 0 && hands > 0.001 {
+                // Saludo: brazo derecho arriba, moviéndose
+                let osc = waving ? sin(13 * wt) * 0.38 * swing : 0
+                raise += (2.35 + osc - raise) * Double(hands)
+            } else if sd < 0 && waving {
+                raise += sin(6 * wt) * 0.08 * swing
             }
-            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w*0.22, lineCap: .round))
-
-        case .heart:
-            let heartPath = heartShape(size: w * 1.2)
-            ctx.fill(heartPath, with: .color(Color(hex: "#FF4D6D")))
-
-        case .star:
-            ctx.rotate(by: .radians(now * 1.5 * sd))
-            let starPath = starShape(outer: w * 1.05, inner: w * 0.46)
-            ctx.fill(starPath, with: .color(Color(hex: "#F7B32B")))
-
-        case .tired:
-            var p1 = Path()
-            p1.addRoundedRect(in: CGRect(x: -w/2, y: -h*0.02, width: w, height: h*0.38),
-                              cornerSize: CGSize(width: w/2, height: w/2))
-            ctx.fill(p1, with: .color(ink))
-            var p2 = Path()
-            p2.addRoundedRect(in: CGRect(x: -w*0.62, y: -h*0.1, width: w*1.24, height: w*0.22),
-                              cornerSize: CGSize(width: w*0.11, height: w*0.11))
-            ctx.fill(p2, with: .color(ink))
-
-        case .wink:
-            if sd < 0 {
-                let hh = max(h * open, w * 0.3)
-                var p = Path()
-                p.addRoundedRect(in: CGRect(x: -w/2, y: -hh/2, width: w, height: hh),
-                                 cornerSize: CGSize(width: min(w/2,hh/2), height: min(w/2,hh/2)))
-                ctx.fill(p, with: .color(ink))
-            } else {
-                var p = Path()
-                p.addArc(center: CGPoint(x: 0, y: h*0.18), radius: w*0.82,
-                         startAngle: .degrees(180+12), endAngle: .degrees(180-12), clockwise: true)
-                ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w*0.5, lineCap: .round))
+            var arm = ctx
+            if vis < 0.99 {
+                // Aparece creciendo desde el hombro
+                let px = CGFloat(sd) * 0.45 * D
+                arm.translateBy(x: px, y: 0)
+                arm.scaleBy(x: vis, y: vis)
+                arm.translateBy(x: -px, y: 0)
             }
-
-        case .cup:
-            // Flat top, rounded bottom corners (like a cup / U-shape)
-            let hh = max(h * open, w * 0.3)
-            let cr = min(w / 2, hh / 2)  // bottom corner radius
-            var p = Path()
-            p.move(to: CGPoint(x: -w/2, y: -hh/2))
-            p.addLine(to: CGPoint(x: w/2, y: -hh/2))
-            p.addLine(to: CGPoint(x: w/2, y: hh/2 - cr))
-            p.addQuadCurve(to: CGPoint(x: w/2 - cr, y: hh/2),
-                           control: CGPoint(x: w/2, y: hh/2))
-            p.addLine(to: CGPoint(x: -w/2 + cr, y: hh/2))
-            p.addQuadCurve(to: CGPoint(x: -w/2, y: hh/2 - cr),
-                           control: CGPoint(x: -w/2, y: hh/2))
-            p.closeSubpath()
-            ctx.fill(p, with: .color(ink))
+            OrbexPainter.drawArm(&arm, side: sd, raise: raise, D: D, tint: frameTint, material: material)
         }
     }
 
-    private func drawBadge(context: GraphicsContext, size: CGSize, badge: BadgeType, R: CGFloat, rx: CGFloat, ry: CGFloat, cx: CGFloat, cy: CGFloat) {
-        let bs = badgeS * (isMini ? 1.25 : 1)
-        let bx = cx - R * 0.72 * sx
-        let by = cy - R * 0.72 * sy
+    /// Ángulo de reposo de cada brazo según el estado (0 = colgando; positivo = hacia afuera).
+    private func restRaise(side: Double, t: Double) -> Double {
+        let calm = reduceMotion
+        let phase: Double = side > 0 ? 1 : 0
+        switch state {
+        case .working:
+            return 0.16 + (calm ? 0 : sin(t * 8 + phase * .pi) * 0.2 * Double(limbs))
+        case .approval, .question:
+            return 0.42 + (calm ? 0 : abs(sin(t * 5.2)) * 0.16)
+        case .error:
+            return 0.3
+        case .sleeping:
+            return 0.45
+        case .ratelimit:
+            return 0.05
+        case .dizzy:
+            return 0.5 + (calm ? 0 : sin(t * 9 + side) * 0.35)
+        default:
+            return 0.08 + (calm ? 0 : sin(t * 1.3 + phase) * 0.04)
+        }
+    }
+
+    /// Microgesto "seguir el puntito": el puntito que miran los ojos.
+    private func drawImaginaryDot(_ context: GraphicsContext, g: Geo, progress: Double) {
+        let p = min(1, max(0, progress))
+        let a = p * 4 * .pi
+        let x = g.cx + CGFloat(cos(a) * 0.9) * g.R
+        let y = g.cy + CGFloat((sin(a) * 0.3 - 0.35) * 1.8) * g.R
+        let s = max(1.5, 0.09 * g.R)
+        var c = context
+        c.opacity = sin(.pi * p)
+        c.fill(Path(ellipseIn: CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s)),
+               with: .color(Color.white.opacity(0.9)))
+    }
+
+    private func drawBadge(_ context: GraphicsContext, badge: BadgeType, g: Geo, now: Double) {
+        let R = g.R
         var ctx = context
-        ctx.translateBy(x: bx, y: by)
-        ctx.scaleBy(x: bs, y: bs)
-        let now = CGFloat(CACurrentMediaTime())
-
+        ctx.translateBy(x: g.cx - R * 0.74 * sx, y: g.cy - R * 0.74 * sy)
+        var s = badgeS
+        let glyph: OrbexPainter.BadgeGlyph
+        let color: CGColor
         switch badge {
-        case .dots(let col):
-            if isMini {
-                // Mini: animated pulsing dot
-                let phase = (now * 2.4).truncatingRemainder(dividingBy: 1)
-                let dotR = R * 0.22 * (1 + 0.25 * sin(phase * .pi * 2))
-                var outer = Path()
-                outer.addEllipse(in: CGRect(x: -R*0.2, y: -R*0.2, width: R*0.4, height: R*0.4))
-                ctx.fill(outer, with: .color(.black))
-                var dot = Path()
-                dot.addEllipse(in: CGRect(x: -dotR, y: -dotR, width: dotR*2, height: dotR*2))
-                ctx.fill(dot, with: .color(Color(cgColor: col)))
-            } else {
-                // Pill badge with animated dots (prototype style)
-                let pw: CGFloat = R * 0.72
-                let ph: CGFloat = R * 0.36
-                var pill = Path()
-                pill.addRoundedRect(in: CGRect(x: -pw/2, y: -ph/2, width: pw, height: ph),
-                                    cornerSize: CGSize(width: ph/2, height: ph/2))
-                ctx.fill(pill, with: .color(Color(cgColor: col)))
-                for i in 0..<3 {
-                    let phase = ((now * 2.4 - CGFloat(i) * 0.22).truncatingRemainder(dividingBy: 1) + 1).truncatingRemainder(dividingBy: 1)
-                    let dotR = R * 0.055 * (1 + 0.4 * max(0, sin(phase * .pi * 2)))
-                    var dot = Path()
-                    dot.addEllipse(in: CGRect(x: (CGFloat(i)-1)*R*0.18 - dotR, y: -dotR, width: dotR*2, height: dotR*2))
-                    ctx.fill(dot, with: .color(.white))
-                }
-            }
-
-        case .bang(let col), .question(let col):
-            var ring = Path()
-            ring.addEllipse(in: CGRect(x: -R*0.3, y: -R*0.3, width: R*0.6, height: R*0.6))
-            ctx.fill(ring, with: .color(.black))
-            var inner = Path()
-            inner.addEllipse(in: CGRect(x: -R*0.23, y: -R*0.23, width: R*0.46, height: R*0.46))
-            ctx.fill(inner, with: .color(Color(cgColor: col)))
-            if !isMini {
-                let text = badge == .bang(col) ? "!" : "?"
-                ctx.draw(Text(text).font(.system(size: R*0.32, weight: .black)).foregroundColor(.white),
-                         at: CGPoint(x: 0, y: R*0.02))
-            }
-
-        case .dot(let col):
-            var outer = Path()
-            outer.addEllipse(in: CGRect(x: -R*0.2, y: -R*0.2, width: R*0.4, height: R*0.4))
-            ctx.fill(outer, with: .color(.black))
-            var inner = Path()
-            inner.addEllipse(in: CGRect(x: -R*0.135, y: -R*0.135, width: R*0.27, height: R*0.27))
-            ctx.fill(inner, with: .color(Color(cgColor: col)))
+        case .dots(let c):
+            glyph = .dots
+            color = c
+        case .bang(let c):
+            glyph = .bang
+            color = c
+            if !reduceMotion { s *= 1 + 0.07 * CGFloat(sin(now * 6)) }
+        case .question(let c):
+            glyph = .question
+            color = c
+            if !reduceMotion { ctx.rotate(by: .radians(sin(now * 3) * 0.12)) }
+        case .dot(let c):
+            color = c
+            glyph = state == .finished ? .check : (state == .ratelimit ? .clock : .plain)
         }
+        ctx.scaleBy(x: s, y: s)
+        OrbexPainter.drawBadge(&ctx, glyph: glyph, color: rgbTuple(color), size: R * 0.3, t: now)
     }
 
-    private func drawParticles(context: GraphicsContext, size: CGSize, R: CGFloat, cx: CGFloat, cy: CGFloat) {
+    private func drawParticles(_ context: GraphicsContext, g: Geo) {
+        guard !particles.isEmpty else { return }
+        let R = g.R
         for p in particles {
             guard p.age > 0 else { continue }
             let k = CGFloat(p.age / p.life)
             let a = k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8
-            let px = cx + (p.x + p.vx * CGFloat(p.age)) * R * 1.3
-            let py = cy + (p.y + p.vy * CGFloat(p.age)) * R * 1.3
+            let age = CGFloat(p.age)
+            var px = g.cx + (p.x + p.vx * age) * R * 1.3
+            let py = g.cy + (p.y + p.vy * age) * R * 1.3
+            if p.type == .bubble { px += sin(age * 6 + p.rot) * R * 0.06 }
             let sz = R * p.size * (1 + k * 0.4)
 
-            var pctx = context
-            pctx.translateBy(x: px, y: py)
-            pctx.opacity = Double(min(max(a, 0), 1))
+            var c = context
+            c.translateBy(x: px, y: py)
+            c.opacity = Double(min(max(a, 0), 1))
 
             switch p.type {
             case .heart:
-                pctx.rotate(by: .radians(sin(CGFloat(p.age) * 6) * 0.3))
-                pctx.fill(heartShape(size: sz), with: .color(Color(hex: "#FF4D6D")))
+                c.rotate(by: .radians(sin(age * 6) * 0.3))
+                let s = sz * 2
+                c.fill(OrbexPainter.heart(size: s), with: .color(Color(red: 1, green: 0.36, blue: 0.52)))
+                c.fill(Path(ellipseIn: CGRect(x: -s * 0.34, y: -s * 0.24, width: s * 0.16, height: s * 0.12)),
+                       with: .color(Color.white.opacity(0.7)))
             case .star:
-                pctx.rotate(by: .radians(p.rot + CGFloat(p.age) * 2))
-                pctx.fill(starShape(outer: sz, inner: sz*0.45), with: .color(Color(hex: "#F7B32B")))
+                c.rotate(by: .radians(p.rot + age * 2))
+                c.fill(OrbexPainter.sparkle(size: sz * 2.4), with: .color(Color(red: 1, green: 0.86, blue: 0.4)))
             case .spark:
-                pctx.rotate(by: .radians(p.rot))
-                pctx.fill(starShape(outer: sz*0.8, inner: sz*0.18), with: .color(.white))
+                c.rotate(by: .radians(p.rot + age * 3))
+                c.fill(OrbexPainter.sparkle(size: sz * 1.7), with: .color(Color(red: 0.9, green: 0.97, blue: 1)))
             case .sweat:
-                var drop = Path()
-                drop.move(to: CGPoint(x: 0, y: -sz))
-                drop.addQuadCurve(to: CGPoint(x: 0, y: sz*0.6), control: CGPoint(x: sz*0.8, y: sz*0.2))
-                drop.addQuadCurve(to: CGPoint(x: 0, y: -sz), control: CGPoint(x: -sz*0.8, y: sz*0.2))
-                pctx.fill(drop, with: .color(Color(hex: "#7CC7FF")))
+                let s = sz * 1.5
+                c.fill(OrbexPainter.teardrop(size: s), with: .color(Color(red: 0.55, green: 0.8, blue: 1).opacity(0.9)))
+                c.fill(Path(ellipseIn: CGRect(x: -s * 0.2, y: -s * 0.05, width: s * 0.16, height: s * 0.22)),
+                       with: .color(Color.white.opacity(0.7)))
             case .z:
-                pctx.draw(Text("z").font(.system(size: sz*1.9, weight: .bold)).foregroundColor(Color(red: 0.82, green: 0.86, blue: 0.92)),
-                          at: .zero)
+                c.rotate(by: .radians(-0.15))
+                c.stroke(OrbexPainter.zGlyph(size: sz * 1.5), with: .color(Color(red: 0.8, green: 0.86, blue: 0.95)),
+                         style: StrokeStyle(lineWidth: max(1, sz * 0.26), lineCap: .round, lineJoin: .round))
+            case .bubble:
+                OrbexPainter.drawBubble(&c, radius: max(1.2, sz * 0.7), tint: frameTint)
             }
         }
     }
 
-    // MARK: - Tween helpers
+    // MARK: - Portal, vida y ambiente (privado)
+
+    private func updatePortal(now: Double, dt: Double) {
+        let dtCG = CGFloat(dt)
+        // El trago manda sobre lo que pida el lienzo (antes el lienzo lo pisaba en cada cuadro).
+        if now < gulpOpenUntil {
+            slotHTarget = 0.42
+        } else if isChewing {
+            slotHTarget = 0.06 + 0.05 * CGFloat(sin(now * 17))
+        } else {
+            slotHTarget = portalHover
+        }
+        // Sin portal ni trago en curso, la apertura queda en cero.
+        if morph < 0.05 && !isChewing && now >= gulpOpenUntil && portalHover < 0.01 {
+            slotH = 0
+            slotHVel = 0
+        }
+        // Resorte de la apertura: ω₀ ≈ 25 rad/s, ζ = 0,6 (un poquito de rebote)
+        let omega: CGFloat = 2 * .pi / 0.25
+        let zeta: CGFloat = 0.6
+        let acc = omega * omega * (slotHTarget - slotH) - 2 * zeta * omega * slotHVel
+        slotHVel += acc * dtCG
+        slotH = max(0, slotH + slotHVel * dtCG)
+
+        // Remolino: lento en reposo, más rápido con un archivo encima, rapidísimo al "masticar"
+        let target: CGFloat = isChewing ? 9 : (now < gulpOpenUntil ? 5 : (slotHTarget > 0.1 ? 3.5 : 1.4))
+        swirlSpeed += (target - swirlSpeed) * CGFloat(1 - exp(-dt * 6))
+        swirl += swirlSpeed * dtCG * (reduceMotion ? 0.4 : 1)
+        if swirl > 1000 { swirl -= 300 * .pi }
+    }
+
+    private func runLife(_ now: Double) {
+        if let g = gesture, now - g.start > g.kind.duration { gesture = nil }
+        let calm = state == .idle && eyeOverride == nil && morph < 0.02 && now > waveUntil
+        let allowGestures = !isMini && !reduceMotion && calm && gesture == nil
+        for event in life.update(now: now, allowGestures: allowGestures) {
+            switch event {
+            case .blink(let double):
+                guard state != .sleeping, state != .dizzy else { continue }
+                blink()
+                if double { after(0.24) { $0.blink() } }
+            case .microgesture(let g):
+                startGesture(g, now: now)
+            case .surprise:
+                // Las sorpresas grandes son de la etapa de animaciones nuevas; por ahora, unas chispitas.
+                emit(.spark, count: 3)
+            }
+        }
+    }
+
+    /// Microgestos suaves (capa L1): se estira, mira alrededor, bosteza, se rasca, sigue un puntito,
+    /// se sacude, da un saltito o saluda chiquito.
+    private func startGesture(_ g: Microgesture, now: Double) {
+        gesture = (g, now)
+        switch g {
+        case .stretch:
+            anim("sy", keys: [
+                TweenKey(target: 1.07, duration: 450, ease: Ease.inOut),
+                TweenKey(target: 1.07, duration: 250, ease: Ease.lin),
+                TweenKey(target: 1,    duration: 450, ease: Ease.inOut),
+            ])
+            anim("sx", keys: [
+                TweenKey(target: 0.96, duration: 450, ease: Ease.inOut),
+                TweenKey(target: 0.96, duration: 250, ease: Ease.lin),
+                TweenKey(target: 1,    duration: 450, ease: Ease.inOut),
+            ])
+            anim("armsUp", keys: [
+                TweenKey(target: 0.85, duration: 450, ease: Ease.out),
+                TweenKey(target: 0.85, duration: 250, ease: Ease.lin),
+                TweenKey(target: 0,    duration: 500, ease: Ease.inOut),
+            ])
+            eyeOverride = .happy
+            eyeOverrideUntil = now + 1.0
+        case .lookAround:
+            anim("glanceX", keys: [
+                TweenKey(target: -0.7, duration: 500, ease: Ease.inOut),
+                TweenKey(target: -0.7, duration: 300, ease: Ease.lin),
+                TweenKey(target:  0.7, duration: 700, ease: Ease.inOut),
+                TweenKey(target:  0.7, duration: 300, ease: Ease.lin),
+                TweenKey(target:  0,   duration: 400, ease: Ease.inOut),
+            ])
+        case .yawn:
+            triggerEmote(.yawn, duration: 1.6, silent: true)
+        case .scratch:
+            anim("tilt", keys: [
+                TweenKey(target: 0.1,  duration: 250, ease: Ease.out),
+                TweenKey(target: 0.06, duration: 300, ease: Ease.inOut),
+                TweenKey(target: 0.1,  duration: 300, ease: Ease.inOut),
+                TweenKey(target: 0,    duration: 400, ease: Ease.inOut),
+            ])
+            anim("glanceY", keys: [
+                TweenKey(target: 0.6, duration: 300, ease: Ease.out),
+                TweenKey(target: 0.6, duration: 700, ease: Ease.lin),
+                TweenKey(target: 0,   duration: 400, ease: Ease.inOut),
+            ])
+        case .followDot:
+            break   // la mirada y el puntito se calculan en cada cuadro
+        case .wiggle:
+            anim("tilt", keys: [
+                TweenKey(target:  0.09, duration: 90,  ease: Ease.out),
+                TweenKey(target: -0.09, duration: 140, ease: Ease.inOut),
+                TweenKey(target:  0.06, duration: 130, ease: Ease.inOut),
+                TweenKey(target: -0.04, duration: 120, ease: Ease.inOut),
+                TweenKey(target:  0,    duration: 150, ease: Ease.out),
+            ])
+        case .hop:
+            anim("oy", keys: [
+                TweenKey(target: -0.16, duration: 160, ease: Ease.out),
+                TweenKey(target:  0,    duration: 260, ease: Ease.back),
+            ])
+            anim("sy", keys: [
+                TweenKey(target: 0.9,  duration: 80,  ease: Ease.out),
+                TweenKey(target: 1.08, duration: 140, ease: Ease.out),
+                TweenKey(target: 1,    duration: 220, ease: Ease.back),
+            ])
+            anim("sx", keys: [
+                TweenKey(target: 1.07, duration: 80,  ease: Ease.out),
+                TweenKey(target: 0.95, duration: 140, ease: Ease.out),
+                TweenKey(target: 1,    duration: 220, ease: Ease.back),
+            ])
+        case .waveSmall:
+            greetToken += 1
+            let tok = greetToken
+            waveStart = now + 0.2
+            waveUntil = now + 1.2
+            anim("hands", keys: [TweenKey(target: 0.7, duration: 250, ease: Ease.out)])
+            eyeOverride = .happy
+            eyeOverrideUntil = now + 1.3
+            after(1.2) { e in
+                guard e.greetToken == tok else { return }
+                e.waveUntil = 0
+                e.anim("hands", keys: [TweenKey(target: 0, duration: 220, ease: Ease.inOut)])
+            }
+        }
+    }
+
+    /// Tema, tinte del usuario, "reducir movimiento" y nivel de vida (dos veces por segundo, no en cada cuadro).
+    private func refreshEnvironment(_ now: Double) {
+        guard now >= nextEnvCheck else { return }
+        nextEnvCheck = now + 0.5
+        BotSoundGate.start()
+        let model = AppModel.shared
+        reduceMotion = model.effectiveReduceMotion
+        let theme = model.themeStyle
+        material = (theme.glassAllowed || theme.id != .liquidGlass) ? OrbexMaterial(theme: theme.id) : .solid
+        userTint = model.brain.tint.rgb
+        let level = model.settings.lifeLevel
+        if life.level != level { life.level = level }
+    }
+
+    /// Tinte del vidrio: color de marca o el que eligió el usuario, teñido por el color del estado.
+    private func computeTint() -> (r: Double, g: Double, b: Double) {
+        let base = bodyColor.map { rgbTuple($0) } ?? userTint
+        let k: Double = isMini ? 0 : Double(tint * (1 - morph * 0.4))
+        var c = mixRGB(base, (r: Double(col.0), g: Double(col.1), b: Double(col.2)), k)
+        if blush > 0.01 { c = mixRGB(c, (r: 1, g: 0.5, b: 0.64), Double(blush) * 0.3) }
+        return c
+    }
+
+    /// Sonido de una reacción del personaje (nunca en los mini ni si otro lienzo lo tapa).
+    private func sound(_ name: String, gap: Double) {
+        guard !isMini, audible else { return }
+        BotSoundGate.play(name, gap: gap)
+    }
+
+    /// Estados que cambian seguido (trabajando/pensando/buscando) suenan como mucho cada 8 s.
+    private static func stateSoundGap(_ name: String) -> Double {
+        switch name {
+        case "work", "think", "search": return 8
+        default: return 1.2
+        }
+    }
+
+    /// Corre `body` en el hilo principal dentro de `delay` segundos (si el motor sigue vivo).
+    private func after(_ delay: Double, _ body: @escaping @MainActor (BotEngine) -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, delay)) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                body(self)
+            }
+        }
+    }
+
+    // MARK: - Tweens
 
     func anim(_ key: String, keys: [TweenKey], onComplete: (() -> Void)? = nil) {
         let current = getProperty(key)
@@ -1368,7 +1449,7 @@ final class BotEngine: ObservableObject {
     private func setTarget(key: String, value: CGFloat) {
         guard !locks.contains(key) else { return }
         switch key {
-        case "tint":  tint  += (value - tint)  // immediate target, smoothed in update
+        case "tint":  tgTint = value   // se suaviza en update
         case "tilt":  tgTilt = value
         default: break
         }
@@ -1376,67 +1457,119 @@ final class BotEngine: ObservableObject {
 
     private func setProperty(_ key: String, value: CGFloat) {
         switch key {
-        case "yaw":    yaw    = value
-        case "pitch":  pitch  = value
-        case "roll":   roll   = value
-        case "tilt":   tilt   = value
-        case "open":   open   = value
-        case "sx":     sx     = value
-        case "sy":     sy     = value
-        case "oy":     oy     = value
-        case "ox":     ox     = value
-        case "tint":   tint   = value
-        case "morph":  morph  = value
-        case "hands":  hands  = value
-        case "blush":  blush  = value
-        case "es":     es     = value
-        case "badgeS": badgeS = value
+        case "yaw":     yaw     = value
+        case "pitch":   pitch   = value
+        case "roll":    roll    = value
+        case "tilt":    tilt    = value
+        case "open":    open    = value
+        case "sx":      sx      = value
+        case "sy":      sy      = value
+        case "oy":      oy      = value
+        case "ox":      ox      = value
+        case "tint":    tint    = value
+        case "morph":   morph   = value
+        case "hands":   hands   = value
+        case "blush":   blush   = value
+        case "es":      es      = value
+        case "badgeS":  badgeS  = value
+        case "armsUp":  armsUp  = value
+        case "glanceX": glanceX = value
+        case "glanceY": glanceY = value
         default: break
         }
     }
 
     private func getProperty(_ key: String) -> CGFloat {
         switch key {
-        case "yaw":    return yaw
-        case "pitch":  return pitch
-        case "roll":   return roll
-        case "tilt":   return tilt
-        case "open":   return open
-        case "sx":     return sx
-        case "sy":     return sy
-        case "oy":     return oy
-        case "ox":     return ox
-        case "tint":   return tint
-        case "morph":  return morph
-        case "hands":  return hands
-        case "blush":  return blush
-        case "es":     return es
-        case "badgeS": return badgeS
-        default:       return 0
+        case "yaw":     return yaw
+        case "pitch":   return pitch
+        case "roll":    return roll
+        case "tilt":    return tilt
+        case "open":    return open
+        case "sx":      return sx
+        case "sy":      return sy
+        case "oy":      return oy
+        case "ox":      return ox
+        case "tint":    return tint
+        case "morph":   return morph
+        case "hands":   return hands
+        case "blush":   return blush
+        case "es":      return es
+        case "badgeS":  return badgeS
+        case "armsUp":  return armsUp
+        case "glanceX": return glanceX
+        case "glanceY": return glanceY
+        default:        return 0
         }
     }
 }
 
-// MARK: - Math helpers
+// MARK: - Sonidos del personaje
+
+/// Evita ráfagas: el mismo sonido no se repite dentro de `gap` segundos aunque lo pidan varias instancias
+/// del motor (isla, fantasma al arrastrar, puntito al subir) o aunque ya haya sonado por el bus de ORBEX.
+@MainActor
+enum BotSoundGate {
+    private static var lastPlayed: [String: Double] = [:]
+    private static var lastBusSound: Double = -10
+    private static var observer: NSObjectProtocol?
+
+    /// Empieza a escuchar los sonidos del bus (una sola vez).
+    static func start() {
+        guard observer == nil else { return }
+        observer = NotificationCenter.default.addObserver(forName: OrbexBus.sound, object: nil, queue: .main) { note in
+            let raw = note.object as? String
+            MainActor.assumeIsolated {
+                let now = CACurrentMediaTime()
+                BotSoundGate.lastBusSound = now
+                if let raw { BotSoundGate.lastPlayed[raw] = now }
+            }
+        }
+    }
+
+    /// ¿Sonó algo por el bus hace menos de `seconds`? (el evento que disparó la reacción ya tiene su sonido)
+    static func busSounded(within seconds: Double) -> Bool {
+        CACurrentMediaTime() - lastBusSound < seconds
+    }
+
+    /// Reproduce un evento de la isla por nombre ("greet", "gulp"…), salvo que el mismo sonido haya
+    /// sonado hace menos de `gap` segundos.
+    static func play(_ name: String, gap: Double) {
+        start()
+        let key = SoundEngine.eventSounds[name]?.rawValue ?? name
+        let now = CACurrentMediaTime()
+        if let last = lastPlayed[key], now - last < gap { return }
+        lastPlayed[key] = now
+        SoundEngine.shared.play(name)
+    }
+}
+
+// MARK: - Ayudas
 
 private func lerp(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (b-a) * t }
-private func clamp(_ v: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat { max(lo, min(hi, v)) }
 
 private func cgColorToTuple(_ c: CGColor) -> (CGFloat, CGFloat, CGFloat) {
     guard let comps = c.components, comps.count >= 3 else { return (1,1,1) }
     return (comps[0], comps[1], comps[2])
 }
 
+private func rgbTuple(_ c: CGColor) -> (r: Double, g: Double, b: Double) {
+    let t = cgColorToTuple(c)
+    return (r: Double(t.0), g: Double(t.1), b: Double(t.2))
+}
+
 private func mix3(_ a: (CGFloat,CGFloat,CGFloat), _ b: (CGFloat,CGFloat,CGFloat), _ t: CGFloat) -> (CGFloat,CGFloat,CGFloat) {
     (lerp(a.0,b.0,t), lerp(a.1,b.1,t), lerp(a.2,b.2,t))
 }
 
-private func mixColor(_ a: (CGFloat,CGFloat,CGFloat), _ b: (CGFloat,CGFloat,CGFloat), _ t: CGFloat) -> (CGFloat,CGFloat,CGFloat) {
-    mix3(a, b, t)
+private func mixRGB(_ a: (r: Double, g: Double, b: Double), _ b: (r: Double, g: Double, b: Double),
+                    _ k: Double) -> (r: Double, g: Double, b: Double) {
+    (r: a.r + (b.r - a.r) * k, g: a.g + (b.g - a.g) * k, b: a.b + (b.b - a.b) * k)
 }
 
-private func colorFromTuple(_ t: (CGFloat,CGFloat,CGFloat)) -> Color {
-    Color(red: Double(t.0), green: Double(t.1), blue: Double(t.2))
+/// Duración (ms) del tramo quieto de un emote; nunca negativa aunque el emote dure poco.
+private func holdMs(_ duration: Double, _ lead: Double) -> CGFloat {
+    CGFloat(max(0, (duration - lead) * 1000))
 }
 
 private func badgeString(_ b: BadgeType?) -> String {
@@ -1453,10 +1586,11 @@ private func badgeString(_ b: BadgeType?) -> String {
     }
 }
 
+/// Emote → forma de ojos de ORBEX.
 private func emoteEyeShape(_ e: BotEmote) -> BotEyeShape {
     switch e {
     case .love:      return .heart
-    case .surprised: return .dot
+    case .surprised: return .wide     // sorprendido: óvalos más altos
     case .proud:     return .star
     case .wink:      return .wink
     case .yawn:      return .tired
@@ -1465,34 +1599,20 @@ private func emoteEyeShape(_ e: BotEmote) -> BotEyeShape {
     }
 }
 
-// MARK: - Shape helpers
-
-private func heartShape(size s: CGFloat) -> Path {
-    var p = Path()
-    p.move(to: CGPoint(x: 0, y: s * 0.38))
-    p.addCurve(to: CGPoint(x: 0, y: -s * 0.38),
-               control1: CGPoint(x: -s * 1.05, y: -s * 0.15),
-               control2: CGPoint(x: -s * 0.5,  y: -s * 0.95))
-    p.addCurve(to: CGPoint(x: 0, y: s * 0.38),
-               control1: CGPoint(x: s * 0.5,   y: -s * 0.95),
-               control2: CGPoint(x: s * 1.05,  y: -s * 0.15))
-    p.closeSubpath()
-    return p
-}
-
-private func starShape(outer ro: CGFloat, inner ri: CGFloat) -> Path {
-    var p = Path()
-    for i in 0..<10 {
-        let r = i.isMultiple(of: 2) ? ro : ri
-        let a = -.pi/2 + CGFloat(i) * .pi/5
-        let pt = CGPoint(x: cos(a) * r, y: sin(a) * r)
-        if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+/// Emote → sonido (nombre de evento de la isla).
+private func emoteSoundName(_ e: BotEmote) -> String? {
+    switch e {
+    case .love:      return "love"
+    case .surprised: return "pop"
+    case .proud:     return "proud"
+    case .wink:      return "wink"
+    case .yawn:      return "yawn"
+    case .annoyed:   return "annoyed"
+    case .happy:     return nil   // se usa como confirmación, junto con el sonido de quien la pide
     }
-    p.closeSubpath()
-    return p
 }
 
-// Equatable for BadgeType (needed for comparing)
+// Equatable para BadgeType (compara solo el tipo)
 extension BadgeType: Equatable {
     static func == (lhs: BadgeType, rhs: BadgeType) -> Bool {
         switch (lhs, rhs) {
