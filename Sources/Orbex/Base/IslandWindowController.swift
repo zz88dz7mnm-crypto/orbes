@@ -2,6 +2,7 @@
 // Modificado para ORBEX (solo el código; ningún asset de Coucou). Ver THIRD_PARTY_NOTICES.md.
 
 import AppKit
+import Carbon
 import Combine
 import SwiftUI
 
@@ -43,35 +44,80 @@ final class IslandWindowController: NSWindowController {
     private var highlightPanel: NSPanel? = nil
     private var highlightWindowPid: pid_t = 0
 
-    // Notch real dimensions (set on init)
+    // ORBEX: medida en vivo del notch (NotchDetector: pantalla elegida, ajuste fino, simulado).
     private var notchW: CGFloat = IslandConst.notchWidth
     private var notchH: CGFloat = IslandConst.notchHeight
+    /// Centro horizontal REAL del notch y borde superior de su pantalla (coordenadas de pantalla).
+    private var notchCenterX: CGFloat = 0
+    private var screenTopY: CGFloat = 0
+
+    // ORBEX: sondeo adaptativo (60 Hz con la isla visible, ~10 Hz oculta).
+    private var pollInterval: TimeInterval = 0
+    private var escMonitor: Any?
+    private var placementObservers: [NSObjectProtocol] = []
+    private var subscriptions: Set<AnyCancellable> = []
+
+    private static let panelW: CGFloat = 720
+    private static let panelH: CGFloat = 320
 
     convenience init() {
-        let screen = Self.notchScreen() ?? NSScreen.main!
-        let nW = Self.notchWidth(for: screen)
-        let nH = Self.notchHeight(for: screen)
-
-        let panelW: CGFloat = 720
-        let panelH: CGFloat = 320
-        let sf = screen.frame
         let panel = IslandPanel(
-            contentRect: NSRect(x: sf.midX - panelW/2, y: sf.maxY - panelH,
-                                width: panelW, height: panelH),
+            contentRect: NSRect(x: 0, y: 0, width: Self.panelW, height: Self.panelH),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false
         )
-        panel.notchWidth  = nW
-        panel.notchHeight = nH
-
         self.init(window: panel)
         self.islandPanel = panel
-        self.notchW = nW
-        self.notchH = nH
-        setupPanel(screen: screen)
+        applyPlacement()
+        setupPanel()
     }
 
-    private func setupPanel(screen: NSScreen) {
+    // MARK: - Ubicación (ORBEX)
+
+    /// Mide el notch en vivo y centra el panel en el centro real del notch de la pantalla elegida.
+    /// Nunca usa medidas fijas: si no hay notch, `NotchDetector` lo simula a partir de la pantalla.
+    func applyPlacement() {
+        let s = AppModel.shared.settings
+        guard let panel = islandPanel,
+              let place = NotchDetector.placement(for: s.screen, adjustW: s.notchAdjustWidth,
+                                                  adjustH: s.notchAdjustHeight) else { return }
+        let nW = CGFloat(place.notch.width)
+        let nH = CGFloat(place.notch.height)
+        notchW = nW
+        notchH = nH
+        notchCenterX = place.notchCenterX
+        screenTopY = place.topY
+        panel.notchWidth = nW
+        panel.notchHeight = nH
+        if AppState.shared.notchWidth != nW { AppState.shared.notchWidth = nW }
+        if AppState.shared.notchHeight != nH { AppState.shared.notchHeight = nH }
+
+        let target = NSRect(x: (place.notchCenterX - Self.panelW / 2).rounded(),
+                            y: place.topY - Self.panelH,
+                            width: Self.panelW, height: Self.panelH)
+        if panel.frame != target { panel.setFrame(target, display: true) }
+    }
+
+    private func observePlacement() {
+        let nc = NotificationCenter.default
+        for name in [NSApplication.didChangeScreenParametersNotification, Notification.Name.orbexPlacementNeedsUpdate] {
+            placementObservers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.applyPlacement() }
+            })
+        }
+        // Cambio de espacio (o de app a pantalla completa): volver a medir y quedar al frente.
+        placementObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.applyPlacement()
+                if !ClockController.shared.isVisible { self.window?.orderFrontRegardless() }
+            }
+        })
+    }
+
+    private func setupPanel() {
         guard let panel = window as? IslandPanel else { return }
         panel.backgroundColor = .clear
         panel.isOpaque = false
@@ -136,6 +182,7 @@ final class IslandWindowController: NSWindowController {
 
         startPolling()
         startKeyMonitor()
+        observePlacement()
         wireFSM()
 
         // Make panel key whenever the prompt/chat view becomes active
@@ -197,15 +244,35 @@ final class IslandWindowController: NSWindowController {
     // MARK: - 60 Hz polling loop
 
     private func startPolling() {
-        frameTimer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in self.pollFrame() }
+        setPollInterval(desiredPollInterval())
+    }
+
+    /// 60 Hz con la isla visible (30 Hz en bajo consumo); ~10 Hz con la isla oculta (casi 0 % CPU):
+    /// alcanza para notar el mouse en el notch.
+    private func desiredPollInterval() -> TimeInterval {
+        if inAttachDrag || attachDragStart != nil { return 1.0 / 60.0 }
+        if state.mode == .hidden { return 0.1 }
+        let model = AppModel.shared
+        if model.settings.lowPowerMode || model.lowPower { return 1.0 / 30.0 }
+        return 1.0 / 60.0
+    }
+
+    private func setPollInterval(_ interval: TimeInterval) {
+        guard interval != pollInterval || frameTimer == nil else { return }
+        pollInterval = interval
+        frameTimer?.invalidate()
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+            // El timer vive en el run loop principal.
+            MainActor.assumeIsolated { self?.pollFrame() }
         }
-        RunLoop.main.add(frameTimer!, forMode: .common)
+        timer.tolerance = interval * 0.2
+        RunLoop.main.add(timer, forMode: .common)
+        frameTimer = timer
     }
 
     private func pollFrame() {
         guard let panel = window as? IslandPanel else { return }
+        defer { setPollInterval(desiredPollInterval()) }
 
         let mouse = NSEvent.mouseLocation
 
@@ -226,12 +293,16 @@ final class IslandWindowController: NSWindowController {
             }
         }
 
-        // Mouse in screen coords (Y flipped, origin top-left) for Bot look-at
-        let screenH = panel.screen?.frame.height ?? NSScreen.main!.frame.height
-        let newPos = CGPoint(x: mouse.x - (panel.screen?.frame.minX ?? 0), y: screenH - mouse.y)
-        let cur = AppState.shared.mousePosition
-        if abs(newPos.x - cur.x) > 1 || abs(newPos.y - cur.y) > 1 {
-            AppState.shared.mousePosition = newPos
+        // Mouse para la mirada de ORBEX (Y desde arriba). `BotCanvasView` supone la isla centrada en
+        // `NSScreen.main`; se expresa el mouse relativo al centro REAL del notch para que la mirada
+        // apunte bien en cualquier pantalla. Con la isla oculta el lienzo está en pausa: no hace falta.
+        if state.mode != .hidden {
+            let refMidX = (NSScreen.main ?? panel.screen)?.frame.midX ?? notchCenterX
+            let newPos = CGPoint(x: mouse.x - notchCenterX + refMidX, y: screenTopY - mouse.y)
+            let cur = AppState.shared.mousePosition
+            if abs(newPos.x - cur.x) > 1 || abs(newPos.y - cur.y) > 1 {
+                AppState.shared.mousePosition = newPos
+            }
         }
 
         // Feed FSM hover enter/leave
@@ -241,7 +312,11 @@ final class IslandWindowController: NSWindowController {
             if fsm.state == .greeting {
                 NotificationCenter.default.post(name: .greetingHover, object: nil)
             }
-            fsm.mouseEntered()
+            // ORBEX: sin "asomarse al pasar el mouse" (o con el reloj flotante afuera) la isla oculta
+            // no se asoma; un clic en el notch la abre igual.
+            let peekBlocked = fsm.state == .hidden
+                && (!AppModel.shared.settings.hoverPeeks || ClockController.shared.isVisible)
+            if !peekBlocked { fsm.mouseEntered() }
         }
         if !inIsland && wasInIsland {
             fsm.mouseLeft()
@@ -359,35 +434,51 @@ final class IslandWindowController: NSWindowController {
     }
 
     /// Rectángulo del notch en pantalla (origen y destino del morph al reloj flotante).
+    /// Sale de la misma medida en vivo que ubica el panel (centro real + ajuste fino).
     func notchRectOnScreen() -> CGRect {
-        guard let screen = window?.screen ?? Self.notchScreen() ?? NSScreen.main else { return .zero }
-        let f = screen.frame
-        return CGRect(x: f.midX - notchW / 2, y: f.maxY - notchH, width: notchW, height: notchH)
+        if screenTopY == 0 { applyPlacement() }
+        guard screenTopY != 0 else { return .zero }
+        return CGRect(x: notchCenterX - notchW / 2, y: screenTopY - notchH, width: notchW, height: notchH)
     }
 
-    // MARK: - Keyboard (Escape closes)
+    // MARK: - Teclado (ORBEX)
+    // Sin monitores globales de teclado (pedían Accesibilidad): los atajos son Carbon (`HotKeys`)
+    // y Esc se escucha con un monitor LOCAL, que solo recibe teclas cuando el panel es key.
 
     private func startKeyMonitor() {
-        keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            Task { @MainActor in
-                guard let self = self else { return }
-                if event.keyCode == 53 { // Escape
-                    if self.state.mode == .expanded && !self.state.isPinned {
-                        self.collapse()
-                    }
-                }
+        escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == UInt16(kVK_Escape) else { return event }
+            let handled: Bool = MainActor.assumeIsolated {
+                guard let self, event.window === self.window,
+                      self.state.mode == .expanded, !self.state.isPinned else { return false }
+                self.collapse()
+                return true
             }
+            return handled ? nil : event
         }
+
+        // Atajo configurable de la base ("Mostrar la isla con un atajo"): ahora con Carbon.
+        state.$hotkeyEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.registerCustomHotKey() }
+            }
+            .store(in: &subscriptions)
 
         // Hook server expand requests (alerts only)
         NotificationCenter.default.addObserver(forName: .hookExpand, object: nil, queue: .main) { [weak self] note in
             guard let self, let view = note.object as? IslandView else { return }
-            self.expand(to: view)
+            // Con el reloj flotante afuera, el puente lo guarda en el notch antes de abrir.
+            if ClockController.shared.isVisible {
+                OrbexBridge.shared.openIsland(view)
+            } else {
+                self.expand(to: view)
+            }
         }
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
         NotificationCenter.default.addObserver(forName: .hookReveal, object: nil, queue: .main) { [weak self] _ in
-            guard let self else { return }
+            guard let self, !ClockController.shared.isVisible else { return }
             self.fsm.reveal()
         }
 
@@ -464,7 +555,12 @@ final class IslandWindowController: NSWindowController {
                 } else {
                     self.attachDragStart = nil
                     if hadPendingClick && self.state.mode != .expanded {
-                        self.fsm.click()   // FSM petit→home; onTransition calls expand(to:)
+                        if self.fsm.state == .hidden {
+                            // Sin asomarse al pasar el mouse: el clic en el notch abre directo.
+                            self.expand(to: self.defaultView())
+                        } else {
+                            self.fsm.click()   // FSM petit→home; onTransition calls expand(to:)
+                        }
                     }
                 }
             }
@@ -474,17 +570,6 @@ final class IslandWindowController: NSWindowController {
             finishDrag()
         }
 
-        // Global hotkey to show island
-        NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            Task { @MainActor in
-                guard let self, self.state.hotkeyEnabled else { return }
-                let pressed = event.modifierFlags.intersection([.command, .control, .option, .shift]).rawValue
-                guard pressed == self.state.hotkeyFlags, event.keyCode == self.state.hotkeyCode else { return }
-                if self.state.mode == .hidden || self.state.mode == .compact {
-                    self.expand(to: .overview)
-                }
-            }
-        }
 
         // Track last external app for window context capture
         let ourBundle = Bundle.main.bundleIdentifier ?? ""
@@ -497,6 +582,22 @@ final class IslandWindowController: NSWindowController {
                app.bundleIdentifier != ourBundle {
                 self.state.lastExternalApp = app
             }
+        }
+    }
+
+    /// Registra (o quita) el atajo configurable de la base como atajo Carbon: sin Accesibilidad.
+    func registerCustomHotKey() {
+        let center = HotKeyCenter.shared
+        guard state.hotkeyEnabled else { center.unregister(id: "custom"); return }
+        let flags = NSEvent.ModifierFlags(rawValue: state.hotkeyFlags)
+        var mods: UInt32 = 0
+        if flags.contains(.command) { mods |= UInt32(cmdKey) }
+        if flags.contains(.option)  { mods |= UInt32(optionKey) }
+        if flags.contains(.control) { mods |= UInt32(controlKey) }
+        if flags.contains(.shift)   { mods |= UInt32(shiftKey) }
+        guard mods != 0 else { center.unregister(id: "custom"); return }
+        center.register(id: "custom", keyCode: UInt32(state.hotkeyCode), modifiers: mods) {
+            OrbexBridge.shared.openIsland()
         }
     }
 
@@ -775,23 +876,7 @@ final class IslandWindowController: NSWindowController {
         return dx*dx + dy*dy <= radius * radius
     }
 
-    // MARK: - Notch detection (static)
-
-    static func notchScreen() -> NSScreen? {
-        NSScreen.screens.first { $0.safeAreaInsets.top > 0 }
-    }
-
-    static func notchWidth(for screen: NSScreen) -> CGFloat {
-        let aux = (screen.auxiliaryTopLeftArea?.width ?? 0) +
-                  (screen.auxiliaryTopRightArea?.width ?? 0)
-        let w = screen.frame.width - aux
-        return w > 0 ? w : IslandConst.notchWidth
-    }
-
-    static func notchHeight(for screen: NSScreen) -> CGFloat {
-        let h = screen.safeAreaInsets.top
-        return h > 0 ? h : IslandConst.notchHeight
-    }
+    // ORBEX: la medida del notch sale de `NotchDetector` (ver `applyPlacement()`).
 
     nonisolated func cleanup() {
         // Called explicitly before release if needed

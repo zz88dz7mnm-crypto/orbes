@@ -2,6 +2,7 @@
 // Modificado para ORBEX (solo el código; ningún asset de Coucou). Ver THIRD_PARTY_NOTICES.md.
 
 import SwiftUI
+import OrbexCore
 
 // MARK: - Dispatch view content by IslandView
 
@@ -898,155 +899,371 @@ struct MailView: View {
 
 // MARK: - Prompt (chat)
 
+/// Chat de la isla: usa `AssistantStore` directo (comandos de ORBEX primero, después Claude por el CLI local).
 struct PromptView: View {
     @ObservedObject var state: AppState
-    @State private var text: String = ""
+    @ObservedObject private var store = AssistantStore.shared
     @FocusState private var focused: Bool
+    /// Último contexto de ventana mandado (para no repetirlo en cada mensaje de la misma sesión).
+    @State private var sentContextKey: String?
 
     var body: some View {
         ZStack(alignment: .leading) {
             CardBackground(wash: .indigo)
 
             VStack(alignment: .leading, spacing: 6) {
-                if let ctx = state.promptContext {
-                    ContextChip(context: ctx).padding(.top, 4)
+                topBar
+                content
+                if let error = store.lastError, error.kind != .notInstalled || !store.messages.isEmpty {
+                    ChatErrorBanner(failure: error, onRetry: { store.retry() })
+                        .transition(.opacity)
                 }
-
-                if !state.chatHistory.isEmpty {
-                    ScrollViewReader { proxy in
-                        ScrollView(.vertical, showsIndicators: false) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                ForEach(state.chatHistory) { msg in
-                                    ChatBubble(message: msg).id(msg.id)
+                if !store.pendingAttachments.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(store.pendingAttachments, id: \.name) { a in
+                                ChatAttachmentChip(name: a.name, bytes: a.bytes, truncated: a.truncated) {
+                                    store.removeAttachment(named: a.name)
                                 }
-                                if state.stateOverride != nil {
-                                    HStack { TypingDotsView(); Spacer(minLength: 32) }
-                                        .id("typing")
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                        .onChange(of: state.chatHistory.count) { _, _ in
-                            if let last = state.chatHistory.last {
-                                withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                            }
-                        }
-                        .onChange(of: state.stateOverride) { _, v in
-                            if v != nil { withAnimation { proxy.scrollTo("typing", anchor: .bottom) } }
-                        }
-                        .onAppear {
-                            if let last = state.chatHistory.last {
-                                proxy.scrollTo(last.id, anchor: .bottom)
                             }
                         }
                     }
-                    .frame(maxHeight: .infinity)
-                } else {
-                    Spacer()
                 }
-
-                HStack(spacing: 8) {
-                    TextField(state.chatHistory.isEmpty ? "Ask me anything…" : "Continue…", text: $text)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                        .focused($focused)
-                        .onSubmit { sendMessage() }
-
-                    Button(action: sendMessage) {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(Color(hex: "#0B0C0E"))
-                    }
-                    .buttonStyle(SendButtonStyle())
-                    .disabled(text.isEmpty)
-                }
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(Color.white.opacity(0.07))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .simultaneousGesture(TapGesture().onEnded { focused = true })
+                inputBar
             }
             .padding(.leading, 84)
             .padding(.trailing, 16)
-            .padding(.top, 12)
+            .padding(.top, 10)
             .padding(.bottom, 14)
         }
+        .overlay(alignment: .bottomLeading) {
+            // Clawd acompaña a ORBEX mientras Claude responde.
+            if showsClawd {
+                ClaudePetView(mood: store.petMood, size: 24)
+                    .padding(.leading, 40)
+                    .padding(.bottom, 26)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.34, dampingFraction: 0.8), value: showsClawd)
+        .animation(.easeOut(duration: 0.18), value: store.lastError)
         .padding(.bottom, 10)
-        .onAppear { focused = true }
+        .dropDestination(for: URL.self) { urls, _ in
+            var any = false
+            for u in urls where store.attach(fileURL: u) { any = true }
+            return any
+        }
+        .onAppear {
+            store.panelDidAppear()
+            attachDroppedFile(state.promptContext)
+            focused = true
+        }
+        .onDisappear { store.panelDidDisappear() }
+        .onChange(of: droppedFileURL) { _, _ in attachDroppedFile(state.promptContext) }
     }
 
-    private func sendMessage() {
-        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return }
-        text = ""
-        focused = false
-        state.chatHistory.append(IslandChatMessage(role: .user, content: query))
-        state.stateOverride = .thinking
-        Task {
-            await OrbexBridge.shared.askClaude(query, context: state.promptContext)
-            await MainActor.run { focused = true }
+    private var showsClawd: Bool {
+        store.isStreaming || store.petMood != .idle
+    }
+
+    // MARK: Barra de arriba
+
+    private var topBar: some View {
+        HStack(spacing: 8) {
+            if let ctx = state.promptContext, case .window = ctx {
+                ContextChip(context: ctx)
+            }
+            Text(subtitle)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundColor(store.isStreaming ? claudeOrange : Color(hex: "#6E737C"))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
+            if !store.messages.isEmpty {
+                Button {
+                    store.newConversation()
+                    sentContextKey = nil
+                    focused = true
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(hex: "#B0B5BE"))
+                }
+                .buttonStyle(.plain)
+                .help("Nueva conversación (⌘N)")
+                .keyboardShortcut("n", modifiers: .command)
+            }
         }
+        .padding(.top, 2)
+    }
+
+    private var subtitle: String {
+        if store.isStreaming { return store.statusNote ?? "Pensando…" }
+        if store.isRunningCommand { return "ORBEX está en eso…" }
+        switch store.cliStatus {
+        case .missing: return "No encontré Claude Code"
+        case .checking: return "Buscando Claude Code…"
+        default:
+            let m = store.model.isEmpty ? "" : " · \(store.model)"
+            return "Claude vía Claude Code\(m)"
+        }
+    }
+
+    // MARK: Conversación
+
+    @ViewBuilder
+    private var content: some View {
+        if store.cliStatus == .missing && store.messages.isEmpty {
+            ChatMissingCLIView(checking: store.cliStatus == .checking, onRetry: { store.refreshCLIStatus() })
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if store.messages.isEmpty {
+            ChatEmptyHints { suggestion in
+                if suggestion.hasSuffix("…") {
+                    store.draft = String(suggestion.dropLast()) + " "
+                    focused = true
+                } else {
+                    store.send(suggestion)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(alignment: .leading, spacing: 7) {
+                        ForEach(store.messages) { msg in
+                            ChatBubble(message: msg,
+                                       showsConfirmation: msg.needsConfirmation && store.pendingConfirmationID == msg.id,
+                                       statusNote: msg.isStreaming ? store.statusNote : nil,
+                                       onConfirm: { store.confirmPending() },
+                                       onCancel: { store.cancelPending() })
+                                .id(msg.id)
+                        }
+                        if store.isRunningCommand {
+                            HStack { TypingDotsView(); Spacer(minLength: 32) }
+                        }
+                        Color.clear.frame(height: 1).id("fondo")
+                    }
+                    .padding(.vertical, 2)
+                }
+                .onAppear { proxy.scrollTo("fondo", anchor: .bottom) }
+                .onChange(of: store.scrollTick) { _, _ in
+                    withAnimation(.easeOut(duration: 0.18)) { proxy.scrollTo("fondo", anchor: .bottom) }
+                }
+            }
+            .frame(maxHeight: .infinity)
+        }
+    }
+
+    // MARK: Entrada
+
+    private var inputBar: some View {
+        HStack(spacing: 8) {
+            Button(action: pickFiles) {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(hex: "#9398A1"))
+            }
+            .buttonStyle(.plain)
+            .disabled(store.isStreaming)
+            .help("Adjuntar archivo de texto")
+
+            TextField(store.messages.isEmpty ? "Preguntale a Claude o pedile algo a ORBEX…" : "Seguí…",
+                      text: $store.draft)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .focused($focused)
+                .onSubmit { sendMessage() }
+
+            Button {
+                if store.isStreaming { store.stop() } else { sendMessage() }
+            } label: {
+                Image(systemName: store.isStreaming ? "stop.fill" : "arrow.up")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(hex: "#0B0C0E"))
+            }
+            .buttonStyle(SendButtonStyle())
+            .disabled(!store.isStreaming && !store.canSend(store.draft))
+            .keyboardShortcut(store.isStreaming ? "." : "\r", modifiers: .command)
+            .help(store.isStreaming ? "Cortar la respuesta (⌘.)" : "Enviar (↩)")
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(Color.white.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .strokeBorder(claudeOrange.opacity(store.isStreaming ? 0.5 : 0), lineWidth: 1))
+        .simultaneousGesture(TapGesture().onEnded { focused = true })
+    }
+
+    // MARK: Acciones
+
+    private func sendMessage() {
+        guard store.canSend(store.draft) else { return }
+        store.sendDraft(context: pendingWindowContext())
+        focused = true
+    }
+
+    /// El contexto de ventana se manda como DATO (adjunto envuelto), una vez por conversación y ventana.
+    private func pendingWindowContext() -> ClaudeAttachment? {
+        guard case .window(let app, let title, let url)? = state.promptContext else { return nil }
+        let key = "\(app)|\(title)|\(url ?? "")"
+        if key == sentContextKey && store.sessionID != nil { return nil }
+        sentContextKey = key
+        return AssistantStore.windowContext(app: app, title: title, url: url)
+    }
+
+    private var droppedFileURL: URL? {
+        if case .file(_, let url)? = state.promptContext { return url }
+        return nil
+    }
+
+    /// Archivo soltado sobre la isla → adjunto del asistente (y se limpia el contexto para no repetirlo).
+    private func attachDroppedFile(_ ctx: PromptContext?) {
+        guard case .file(_, let url?)? = ctx else { return }
+        store.attach(fileURL: url)
+        state.promptContext = nil
+    }
+
+    private func pickFiles() {
+        for url in ChatClipboard.pickTextFiles() { store.attach(fileURL: url) }
+        focused = true
     }
 }
 
-
+/// Un mensaje del chat: usuario (derecha), Claude (Markdown + herramientas) u ORBEX (comandos, errores).
 struct ChatBubble: View {
-    let message: IslandChatMessage
+    let message: ChatMessage
+    var showsConfirmation: Bool = false
+    var statusNote: String? = nil
+    var onConfirm: () -> Void = {}
+    var onCancel: () -> Void = {}
+    @State private var hovering = false
 
     var body: some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .top, spacing: 0) {
             if message.role == .user {
                 Spacer(minLength: 32)
-                Text(message.content)
-                    .font(.system(size: 12.5))
-                    .foregroundColor(Color(hex: "#F1F2F4"))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Color.white.opacity(0.13))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                VStack(alignment: .trailing, spacing: 3) {
+                    ForEach(message.attachments) { a in
+                        Label(a.name, systemImage: "doc.text")
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(Color(hex: "#9398A1"))
+                    }
+                    if !message.text.isEmpty {
+                        Text(message.text)
+                            .font(.system(size: 12.5))
+                            .foregroundColor(Color(hex: "#F1F2F4"))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(Color.white.opacity(0.13))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
-                Text(message.content)
-                    .font(.system(size: 12.5))
-                    .foregroundColor(Color(hex: "#B0B5BE"))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 4) {
+                    author
+                    if !message.toolChips.isEmpty { ChatToolChips(chips: message.toolChips) }
+                    if message.isStreaming && message.text.isEmpty {
+                        HStack(spacing: 6) {
+                            TypingDotsView(color: claudeOrange)
+                            Text(statusNote ?? "Pensando…")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(Color(hex: "#9398A1"))
+                                .lineLimit(1)
+                        }
+                    } else if !message.text.isEmpty {
+                        ChatMarkdownText(text: message.text, streaming: message.isStreaming,
+                                         color: message.isError ? Color(red: 1, green: 0.62, blue: 0.55)
+                                                                : Color(hex: "#DADDE2"))
+                            .textSelection(.enabled)
+                    }
+                    if showsConfirmation {
+                        HStack(spacing: 8) {
+                            Button("Confirmar", action: onConfirm)
+                                .buttonStyle(.borderedProminent)
+                                .tint(claudeOrange)
+                            Button("Cancelar", action: onCancel)
+                                .buttonStyle(.bordered)
+                        }
+                        .controlSize(.small)
+                        .padding(.top, 2)
+                    }
+                    if let foot = message.footnote, !message.isStreaming, hovering {
+                        Text(foot)
+                            .font(.system(size: 9))
+                            .foregroundColor(Color(hex: "#6E737C"))
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if hovering && !message.text.isEmpty && !message.isStreaming {
+                        Button { ChatClipboard.copy(message.text) } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(Color(hex: "#B0B5BE"))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Copiar")
+                    }
+                }
                 Spacer(minLength: 8)
+            }
+        }
+        .onHover { hovering = $0 }
+    }
+
+    private var author: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(message.role == .assistant ? claudeOrange : Color(hex: "#A78BFA"))
+                .frame(width: 5, height: 5)
+            Text(message.role == .assistant ? "Claude" : "ORBEX")
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundColor(Color(hex: "#6E737C"))
+            if let m = message.model, message.role == .assistant {
+                Text("· \(m)")
+                    .font(.system(size: 9))
+                    .foregroundColor(Color(hex: "#6E737C"))
+                    .lineLimit(1)
             }
         }
     }
 }
 
 struct TypingDotsView: View {
-    @State private var phase = false
+    var color: Color = Color(hex: "#6B7079")
+    @Environment(\.orbexTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<3, id: \.self) { i in
-                Circle()
-                    .fill(Color(hex: "#6B7079"))
-                    .frame(width: 5, height: 5)
-                    .scaleEffect(phase ? 1.2 : 0.6)
-                    .animation(
-                        .easeInOut(duration: 0.45).repeatForever().delay(Double(i) * 0.14),
-                        value: phase
-                    )
+        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: theme.reduceMotion)) { ctx in
+            let t = ctx.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .fill(color)
+                        .frame(width: 5, height: 5)
+                        .offset(y: theme.reduceMotion ? 0 : -3 * max(0, sin(t * 6 - Double(i) * 0.7)))
+                }
             }
         }
-        .padding(.horizontal, 2).padding(.vertical, 4)
-        .onAppear { phase = true }
+        .frame(height: 10)
+        .padding(.horizontal, 2).padding(.vertical, 2)
     }
 }
 
 // MARK: - Searching
 
+/// Claude está usando herramientas (buscar, leer…). Vuelve sola al chat cuando termina.
 struct SearchingView: View {
     @ObservedObject var state: AppState
+    @ObservedObject private var store = AssistantStore.shared
 
     var label: String {
+        if let tool = store.runningToolTitle { return tool }
+        if store.isStreaming, let note = store.statusNote { return note }
         switch state.promptContext {
-        case .window(_, let title, _): return "Claude is reading \(title)…"
-        case .file(let name, _): return "Claude is reading \(name)…"
-        case nil: return "Claude is searching…"
+        case .window(_, let title, _): return "Claude está leyendo \(title)…"
+        case .file(let name, _): return "Claude está leyendo \(name)…"
+        case nil: return "Claude está buscando…"
         }
     }
 
@@ -1055,66 +1272,71 @@ struct SearchingView: View {
             CardBackground(wash: .indigo)
 
             VStack(alignment: .leading, spacing: 8) {
-                if let ctx = state.promptContext {
-                    ContextChip(context: ctx)
+                HStack(spacing: 8) {
+                    if let ctx = state.promptContext {
+                        ContextChip(context: ctx)
+                    }
+                    ClaudePetView(mood: store.petMood, size: 20)
                 }
                 ShimmeringText(label)
                     .font(.system(size: 13.5))
+                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    SecondaryButton("Ver el chat") { state.view = .prompt }
+                    if store.isStreaming {
+                        SecondaryButton("Detener") { store.stop() }
+                    }
+                }
             }
             .padding(.leading, 84)
             .padding(.trailing, 16)
+        }
+        .onChange(of: store.isStreaming) { _, streaming in
+            if !streaming && state.view == .searching {
+                state.view = store.lastReply != nil ? .result : .prompt
+            }
         }
     }
 }
 
 // MARK: - Result
 
+/// Respuesta corta de Claude (la última). Para seguir, se abre el chat.
 struct ResultView: View {
     @ObservedObject var state: AppState
+    @ObservedObject private var store = AssistantStore.shared
 
     var body: some View {
         ZStack(alignment: .leading) {
             CardBackground(wash: .green)
 
-            if let result = state.searchResult {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(result.title)
-                        .font(.system(size: 15, weight: .semibold))
-
-                    VStack(spacing: 4) {
-                        ForEach(result.items.prefix(3), id: \.label) { item in
-                            HStack {
-                                Text(item.label).font(.system(size: 12.5, weight: .semibold))
-                                Spacer()
-                                Text(item.detail).font(.system(size: 12.5)).foregroundColor(Color(hex: "#9398A1"))
-                            }
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(Color.white.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                    }
-
-                    if let note = result.note {
-                        Text(note).font(.system(size: 11)).foregroundColor(Color(hex: "#6E737C"))
-                    }
-
-                    HStack(spacing: 8) {
-                        PrimaryButton("Open") {
-                            if let urlStr = result.items.first?.url, let url = URL(string: urlStr) {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-                        SecondaryButton("Copy") {
-                            let text = result.items.map { "\($0.label): \($0.detail)" }.joined(separator: "\n")
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(text, forType: .string)
-                        }
-                        SecondaryButton("Close") { state.view = state.tasks.isEmpty ? .empty : .overview }
-                    }
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 5) {
+                    Circle().fill(claudeOrange).frame(width: 6, height: 6)
+                    Text("Claude")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(hex: "#9398A1"))
                 }
-                .padding(.leading, 84)
-                .padding(.trailing, 16)
+                if let reply = store.lastReply {
+                    Text(ChatMarkdownText.attributed(reply.text))
+                        .font(.system(size: 12.5))
+                        .foregroundColor(Color(hex: "#DADDE2"))
+                        .lineLimit(4)
+                        .textSelection(.enabled)
+                    HStack(spacing: 8) {
+                        PrimaryButton("Seguir en el chat") { state.view = .prompt }
+                        SecondaryButton("Copiar") { ChatClipboard.copy(reply.text) }
+                        SecondaryButton("Cerrar") { state.view = state.tasks.isEmpty ? .empty : .overview }
+                    }
+                } else {
+                    Text("Todavía no hay respuestas.")
+                        .font(.system(size: 12.5))
+                        .foregroundColor(Color(hex: "#9398A1"))
+                    PrimaryButton("Abrir el chat") { state.view = .prompt }
+                }
             }
+            .padding(.leading, 84)
+            .padding(.trailing, 16)
         }
     }
 }
