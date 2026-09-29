@@ -87,8 +87,14 @@ final class OrbexBridge {
     func show(page: IslandPage) {
         switch page {
         case .sessions:
-            openIsland(SessionsStore.shared.approvals.isEmpty ? nil : .approval)
-        case .home, .timers, .notes, .music, .integrations:
+            SessionsBridge.shared.openSessionsPage()
+        case .timers:
+            openIsland(.timers)
+        case .notes:
+            openIsland(.notes)
+        case .music:
+            openIsland(.music)
+        case .home, .integrations:
             openIsland()
         }
     }

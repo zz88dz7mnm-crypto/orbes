@@ -28,6 +28,7 @@ struct IslandViewContent: View {
         case .note:      NoteView(state: state)
         case .settings:  SettingsIslandView(state: state)
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
+        case .timers, .notes, .music: EmptyView()  // ORBEX: se dibujan en IslandContentView (IslandRootView.swift)
         }
     }
 }
@@ -110,7 +111,10 @@ struct OverviewView: View {
 
             // Right card: agent pills
             CardBackground(wash: nil) {
-                AgentPillsView(state: state)
+                VStack(spacing: 4) {
+                    TimerSummaryRow()   // ORBEX: timers corriendo (no ocupa lugar si no hay)
+                    AgentPillsView(state: state)
+                }
             }
         }
         .onChange(of: state.focusId) { _, _ in showingN8nDetail = false }

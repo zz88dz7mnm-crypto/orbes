@@ -15,6 +15,8 @@ enum IslandView: String, CaseIterable {
     case overview, empty, approval, question, error, finished
     case confused, upload, uploading, choose, mail, prompt
     case searching, result, note, settings, greeting
+    // ORBEX: utilidades
+    case timers, notes, music
 }
 
 // MARK: - Bot State
@@ -110,6 +112,10 @@ enum IslandConst {
         .settings:  ViewLayout(height: 160, botX: 54,  botY: nil, botDiameter: 46, agentMode: .none),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
+        // ORBEX: utilidades (tarjeta con el personaje a la izquierda; ver Base/Views/*IslandView.swift)
+        .timers:    ViewLayout(height: 212, botX: 54,  botY: nil, botDiameter: 46, agentMode: .none),
+        .notes:     ViewLayout(height: 204, botX: 54,  botY: nil, botDiameter: 46, agentMode: .none),
+        .music:     ViewLayout(height: 172, botX: 54,  botY: nil, botDiameter: 46, agentMode: .none),
     ]
 
     // Colores fijos por proyecto (vacío: cada proyecto toma un color estable de `fallbackColors`).

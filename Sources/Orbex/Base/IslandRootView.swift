@@ -430,11 +430,12 @@ struct IslandContentView: View {
                     // Views that fill available height instead of the fixed 98pt content frame:
                     // chat (prompt) is always flexible; mail is flexible only when active so
                     // it doesn't push the ZStack taller when inactive.
-                    let isTall = v == .prompt || (v == .mail && active)
+                    let isUtility = Self.utilityViews.contains(v)
+                    let isTall = v == .prompt || (v == .mail && active) || (isUtility && active)
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
                         : .easeIn(duration: 0.16)
-                    IslandViewContent(view: v, state: state)
+                    content(for: v, active: active)
                         .frame(maxWidth: .infinity)
                         .frame(height: isTall ? nil : 98)
                         .frame(maxHeight: isTall ? .infinity : nil)
@@ -450,6 +451,24 @@ struct IslandContentView: View {
         .padding(.top, 8)
         .padding(.bottom, 10)
         .foregroundColor(Color(hex: "#F5F6F8"))
+    }
+
+    /// Vistas de utilidades de ORBEX (timers, notas, música): se dibujan acá y solo mientras están
+    /// activas, así no refrescan (ni gastan CPU) escondidas detrás de las demás.
+    static let utilityViews: Set<IslandView> = [.timers, .notes, .music]
+
+    @ViewBuilder
+    private func content(for v: IslandView, active: Bool) -> some View {
+        switch v {
+        case .timers:
+            if active { TimersIslandView(state: state) } else { Color.clear }
+        case .notes:
+            if active { NotesIslandView(state: state) } else { Color.clear }
+        case .music:
+            if active { MusicIslandView(state: state) } else { Color.clear }
+        default:
+            IslandViewContent(view: v, state: state)
+        }
     }
 }
 
@@ -472,6 +491,9 @@ struct IslandHeader: View {
                     #endif
                 })
                 TabButton(icon: "plus", view: .upload, state: state)
+                TabButton(icon: "timer", view: .timers, state: state)
+                TabButton(icon: "note.text", view: .notes, state: state)
+                TabButton(icon: "music.note", view: .music, state: state)
             }
             .padding(.leading, 14)
 
@@ -491,6 +513,14 @@ struct IslandHeader: View {
 
             // Right: action icons
             HStack(spacing: 14) {
+                Button(action: { OrbexBus.perform("clock") }) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "#8E939C"))
+                }
+                .buttonStyle(.plain)
+                .help("Pasar a reloj")
+
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         state.view = .settings
