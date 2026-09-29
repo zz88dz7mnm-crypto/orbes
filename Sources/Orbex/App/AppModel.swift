@@ -49,6 +49,7 @@ final class AppModel: ObservableObject {
     private var tintRequests: [String: OrbexTint] = [:]
     private var tintOrder: [String] = []
     private(set) var isSleepy = false
+    private var wasAnyWorking = false
     private var islandMode: IslandMode = .hidden
     private var islandView: IslandView = .overview
     private var observers: [NSObjectProtocol] = []
@@ -162,10 +163,15 @@ final class AppModel: ObservableObject {
         let working = activity.values.contains { $0.working }
         let attention = activity.values.contains { $0.attention }
         let hadAttention = !attentionSources.isEmpty
+        let wasWorking = wasAnyWorking
+        wasAnyWorking = working
         attentionSources = activity.filter { $0.value.attention }.map { $0.key }.sorted()
         OrbexBridge.shared.setAmbient(working: working, attention: attention, sleepy: isSleepy)
         if attention && !hadAttention {
             OrbexBus.play(.needsYou)
+            OrbexBridge.shared.reveal()
+        } else if working && !wasWorking {
+            // Algo empezó a trabajar (timer, asistente, sesión): la isla compacta se asoma a mostrarlo.
             OrbexBridge.shared.reveal()
         }
         refreshIslandState()
