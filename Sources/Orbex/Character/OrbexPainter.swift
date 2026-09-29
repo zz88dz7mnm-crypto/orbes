@@ -390,3 +390,335 @@ enum OrbexPainter {
         return p
     }
 }
+
+// MARK: - Piezas de ORBEX para el motor de la isla (`BotEngine`)
+//
+// Todo centrado en el origen salvo que se diga otra cosa. Nada de blur ni cientos de paths:
+// se dibuja en cada cuadro.
+
+extension OrbexPainter {
+    typealias RGB = (r: Double, g: Double, b: Double)
+
+    // MARK: Ojos
+
+    /// Ojo de ORBEX con cualquier forma del motor. `w`×`h` = óvalo base (vertical); `open` = párpado
+    /// (1 abierto, ~0 cerrado); `side` = −1 izquierdo, +1 derecho; `detail` = dibujar el brillito.
+    static func drawEye(_ ctx: inout GraphicsContext, shape: BotEyeShape, w: CGFloat, h: CGFloat,
+                        open: CGFloat, side: CGFloat, t: Double, detail: Bool, ink: Color? = nil) {
+        let ink = ink ?? eyeColor
+        switch shape {
+        case .pill:
+            ovalEye(&ctx, w: w, h: h, open: open, ink: ink, detail: detail, eager: false)
+        case .wide:
+            // Sorpresa / atención: óvalos más grandes.
+            ovalEye(&ctx, w: w * 1.2, h: h * 1.14, open: open, ink: ink, detail: detail, eager: false)
+        case .cup:
+            // Ganas (archivo encima del portal): óvalos brillosos, con dos brillitos.
+            ovalEye(&ctx, w: w * 1.12, h: h * 1.05, open: open, ink: ink, detail: detail, eager: true)
+        case .dot:
+            // Pasmado: ojitos redondos.
+            let d = max(1.4, w * 1.3)
+            ovalEye(&ctx, w: d, h: d, open: max(open, 0.3), ink: ink, detail: detail, eager: false)
+        case .line:
+            // Molesto: achatados arriba, con las puntas de adentro hacia abajo.
+            var c = ctx
+            c.rotate(by: .radians(Double(-side) * 0.26))
+            cutEye(&c, w: w * 1.12, h: h * 0.84, open: open, cut: 0.46, ink: ink)
+        case .flat:
+            // Error / preocupado: achatados arriba, con las puntas de adentro hacia arriba.
+            var c = ctx
+            c.rotate(by: .radians(Double(side) * 0.26))
+            cutEye(&c, w: w * 1.08, h: h * 0.8, open: open, cut: 0.4, ink: ink)
+        case .tired:
+            // Cansado: medio cerrados, con la rayita del párpado.
+            let eh = h * 0.9
+            cutEye(&ctx, w: w * 1.05, h: eh, open: 1, cut: 0.5, ink: ink)
+            var lid = Path()
+            lid.move(to: CGPoint(x: -w * 0.7, y: 0))
+            lid.addLine(to: CGPoint(x: w * 0.7, y: 0))
+            ctx.stroke(lid, with: .color(ink), style: StrokeStyle(lineWidth: max(0.8, w * 0.22), lineCap: .round))
+        case .happy:
+            happyArc(&ctx, w: w, h: h, ink: ink)
+        case .wink:
+            if side < 0 {
+                ovalEye(&ctx, w: w, h: h, open: open, ink: ink, detail: detail, eager: false)
+            } else {
+                happyArc(&ctx, w: w, h: h, ink: ink)
+            }
+        case .closed:
+            // Dormido: rayitas apenas curvas.
+            var p = Path()
+            p.move(to: CGPoint(x: -w * 0.8, y: 0))
+            p.addQuadCurve(to: CGPoint(x: w * 0.8, y: 0), control: CGPoint(x: 0, y: h * 0.2))
+            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: max(1, w * 0.42), lineCap: .round))
+        case .spiral:
+            var c = ctx
+            c.rotate(by: .radians(t * 7 * Double(side)))
+            c.stroke(spiral(radius: w * 0.95), with: .color(ink),
+                     style: StrokeStyle(lineWidth: max(0.9, w * 0.3), lineCap: .round))
+        case .heart:
+            let s = w * 2.2
+            ctx.fill(heart(size: s), with: .color(Color(red: 1, green: 0.34, blue: 0.5)))
+            if detail {
+                ctx.fill(Path(ellipseIn: CGRect(x: -s * 0.36, y: -s * 0.26, width: s * 0.16, height: s * 0.12)),
+                         with: .color(Color.white.opacity(0.7)))
+            }
+        case .star:
+            var c = ctx
+            c.rotate(by: .radians(t * 1.2 * Double(side)))
+            let s = w * 2.6
+            c.fill(sparkle(size: s), with: .color(Color(red: 1, green: 0.86, blue: 0.36)))
+            c.fill(Path(ellipseIn: CGRect(x: -s * 0.08, y: -s * 0.08, width: s * 0.16, height: s * 0.16)),
+                   with: .color(Color.white.opacity(0.85)))
+        }
+    }
+
+    /// Óvalo vertical negro; al parpadear se aplasta. `eager` suma un segundo brillito.
+    private static func ovalEye(_ ctx: inout GraphicsContext, w: CGFloat, h: CGFloat, open: CGFloat,
+                                ink: Color, detail: Bool, eager: Bool) {
+        let eh = max(w * 0.3, h * max(0.06, min(1, open)))
+        ctx.fill(Path(ellipseIn: CGRect(x: -w / 2, y: -eh / 2, width: w, height: eh)), with: .color(ink))
+        guard detail, open > 0.55 else { return }
+        let g = w * 0.36
+        ctx.fill(Path(ellipseIn: CGRect(x: -w * 0.3, y: -eh * 0.4, width: g, height: g * 1.35)),
+                 with: .color(Color.white.opacity(0.5)))
+        if eager {
+            let s = w * 0.22
+            ctx.fill(Path(ellipseIn: CGRect(x: w * 0.06, y: eh * 0.1, width: s, height: s)),
+                     with: .color(Color.white.opacity(0.4)))
+        }
+    }
+
+    /// Óvalo con la parte de arriba cortada en recta (`cut` = fracción del alto que se saca).
+    private static func cutEye(_ ctx: inout GraphicsContext, w: CGFloat, h: CGFloat, open: CGFloat,
+                               cut: CGFloat, ink: Color) {
+        let eh = max(w * 0.3, h * max(0.06, min(1, open)))
+        let a = w / 2, b = eh / 2
+        let yc = -b + eh * cut
+        let a0 = asin(max(-1, min(1, yc / b)))
+        var p = Path()
+        let n = 12
+        for i in 0...n {
+            // De la punta derecha del corte, por abajo, a la punta izquierda.
+            let th = a0 + (CGFloat.pi - 2 * a0) * CGFloat(i) / CGFloat(n)
+            let pt = CGPoint(x: a * cos(th), y: b * sin(th))
+            if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+        }
+        p.closeSubpath()
+        ctx.fill(p, with: .color(ink))
+    }
+
+    /// Ojo feliz: arquito hacia arriba.
+    private static func happyArc(_ ctx: inout GraphicsContext, w: CGFloat, h: CGFloat, ink: Color) {
+        var p = Path()
+        p.move(to: CGPoint(x: -w * 0.8, y: h * 0.1))
+        p.addQuadCurve(to: CGPoint(x: w * 0.8, y: h * 0.1), control: CGPoint(x: 0, y: -h * 0.42))
+        ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: max(1.2, w * 0.5), lineCap: .round))
+    }
+
+    // MARK: Cuerpo
+
+    /// Mini-ORBEX (pastillas y grilla compacta, 12–22 pt): cuenta de vidrio opaca del color `tint`,
+    /// luz detrás de los ojos para que se lean, borde del color del estado y brillito.
+    static func drawMiniBody(_ ctx: inout GraphicsContext, D: CGFloat, tint: RGB, rim: RGB, rimAlpha: Double) {
+        let r = D / 2
+        let circle = Path(ellipseIn: CGRect(x: -r, y: -r, width: D, height: D))
+        ctx.fill(circle, with: .radialGradient(
+            Gradient(stops: [
+                .init(color: rgb(mix(tint, white, 0.55), 1), location: 0),
+                .init(color: rgb(tint, 1), location: 0.55),
+                .init(color: rgb(mix(tint, deep, 0.35), 1), location: 1),
+            ]),
+            center: CGPoint(x: -0.3 * r, y: -0.35 * r), startRadius: 0, endRadius: 1.35 * r))
+        ctx.fill(circle, with: .radialGradient(
+            Gradient(colors: [Color.white.opacity(0.24), Color.white.opacity(0)]),
+            center: CGPoint(x: 0, y: -0.1 * r), startRadius: 0, endRadius: 0.72 * r))
+        ctx.stroke(circle, with: .color(rgb(rim, rimAlpha)), lineWidth: max(0.6, 0.09 * D))
+        ctx.fill(Path(ellipseIn: CGRect(x: -0.64 * r, y: -0.74 * r, width: 0.4 * r, height: 0.24 * r)),
+                 with: .color(Color.white.opacity(0.6)))
+    }
+
+    /// Luz interior detrás de los ojos: da contraste a la cara sobre la isla negra (material vidrio).
+    static func drawInnerLight(_ ctx: inout GraphicsContext, D: CGFloat, tint: RGB, alpha: Double) {
+        let r = D / 2
+        let c = mix(tint, white, 0.55)
+        ctx.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: D, height: D)), with: .radialGradient(
+            Gradient(colors: [rgb(c, alpha), rgb(c, 0)]),
+            center: CGPoint(x: 0, y: -0.1 * r), startRadius: 0, endRadius: 0.8 * r))
+    }
+
+    /// Vidrio que se entibia (cariño, orgullo): resplandor rosado en la parte de abajo de la esfera.
+    static func drawWarmth(_ ctx: inout GraphicsContext, D: CGFloat, amount: Double) {
+        let r = D / 2
+        ctx.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: D, height: D)), with: .radialGradient(
+            Gradient(colors: [Color(red: 1, green: 0.45, blue: 0.6).opacity(0.32 * amount), Color.clear]),
+            center: CGPoint(x: 0, y: 0.3 * r), startRadius: 0, endRadius: 0.8 * r))
+    }
+
+    /// Halo suave del color del estado, en coordenadas del lienzo. Detrás del vidrio también
+    /// ilumina la esfera por dentro.
+    static func drawHalo(_ ctx: inout GraphicsContext, center: CGPoint, radius: CGFloat, color: RGB, alpha: Double) {
+        let rect = CGRect(x: center.x - radius, y: center.y - radius, width: 2 * radius, height: 2 * radius)
+        ctx.fill(Path(ellipseIn: rect), with: .radialGradient(
+            Gradient(stops: [
+                .init(color: rgb(color, alpha * 0.9), location: 0),
+                .init(color: rgb(color, alpha * 0.7), location: 0.55),
+                .init(color: rgb(color, alpha * 0.25), location: 0.76),
+                .init(color: rgb(color, 0), location: 1),
+            ]),
+            center: center, startRadius: 0, endRadius: radius))
+    }
+
+    /// Reflejo de contacto en el piso, sin blur (degradado radial aplastado), en coordenadas del lienzo.
+    static func drawFloorGlow(_ ctx: inout GraphicsContext, center: CGPoint, width: CGFloat, height: CGFloat,
+                              alpha: Double) {
+        guard width > 0.5, height > 0.1 else { return }
+        var c = ctx
+        c.translateBy(x: center.x, y: center.y)
+        c.scaleBy(x: 1, y: height / width)
+        let r = width / 2
+        c.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: width, height: width)), with: .radialGradient(
+            Gradient(colors: [Color.white.opacity(alpha), Color.white.opacity(0)]),
+            center: .zero, startRadius: 0, endRadius: r))
+    }
+
+    // MARK: Portal (subir archivo)
+
+    /// Portal de vidrio: aro alrededor de la abertura, interior profundo con remolino y labio brillante.
+    /// `hole` = radio de la abertura; `swirl` = giro del remolino (radianes); `strength` = 0…1.
+    static func drawPortal(_ ctx: inout GraphicsContext, D: CGFloat, hole: CGFloat, swirl: Double,
+                           tint: RGB, strength: Double) {
+        let r = D / 2
+        let ringR = max(hole, 0.18 * r) + 0.1 * r
+        ctx.stroke(Path(ellipseIn: CGRect(x: -ringR, y: -ringR, width: 2 * ringR, height: 2 * ringR)),
+                   with: .color(rgb(mix(tint, white, 0.6), 0.35 * strength)), lineWidth: max(0.8, 0.05 * D))
+        guard hole > 0.8 else { return }
+        let disc = Path(ellipseIn: CGRect(x: -hole, y: -hole, width: 2 * hole, height: 2 * hole))
+        ctx.fill(disc, with: .radialGradient(
+            Gradient(stops: [
+                .init(color: Color(red: 0.01, green: 0.015, blue: 0.035).opacity(strength), location: 0),
+                .init(color: rgb(mix(tint, deep, 0.7), 0.95 * strength), location: 0.62),
+                .init(color: rgb(mix(tint, white, 0.25), 0.9 * strength), location: 1),
+            ]),
+            center: .zero, startRadius: 0, endRadius: hole))
+        // Remolino: tres brazos en espiral que giran.
+        var arms = Path()
+        for i in 0..<3 {
+            let base = swirl + Double(i) * 2 * .pi / 3
+            for j in 0...8 {
+                let k = Double(j) / 8
+                let rr = hole * CGFloat(0.16 + 0.78 * k)
+                let a = base + k * 2.2
+                let pt = CGPoint(x: rr * CGFloat(cos(a)), y: rr * CGFloat(sin(a)))
+                if j == 0 { arms.move(to: pt) } else { arms.addLine(to: pt) }
+            }
+        }
+        var inner = ctx
+        inner.clip(to: disc)
+        inner.stroke(arms, with: .color(rgb(mix(tint, white, 0.55), 0.42 * strength)),
+                     style: StrokeStyle(lineWidth: max(0.7, hole * 0.09), lineCap: .round, lineJoin: .round))
+        ctx.stroke(disc, with: .linearGradient(
+            Gradient(colors: [Color.white.opacity(0.8 * strength), rgb(tint, 0.3 * strength)]),
+            startPoint: CGPoint(x: -hole, y: -hole), endPoint: CGPoint(x: hole, y: hole)),
+                   lineWidth: max(0.8, 0.035 * D))
+    }
+
+    /// Ondita que sale del portal al tragar (`k` = 0…1 del recorrido).
+    static func drawRipple(_ ctx: inout GraphicsContext, from r0: CGFloat, to r1: CGFloat, k: Double,
+                           tint: RGB, D: CGFloat) {
+        let alpha = 0.55 * (1 - k)
+        guard alpha > 0.01 else { return }
+        let e = 1 - pow(1 - k, 3)
+        let rr = r0 + (r1 - r0) * CGFloat(e)
+        ctx.stroke(Path(ellipseIn: CGRect(x: -rr, y: -rr, width: 2 * rr, height: 2 * rr)),
+                   with: .color(rgb(mix(tint, white, 0.6), alpha)), lineWidth: max(0.8, 0.05 * D * CGFloat(1 - k)))
+    }
+
+    // MARK: Insignias y partículas
+
+    enum BadgeGlyph { case dots, bang, question, check, clock, plain }
+
+    /// Insignia de vidrio: burbuja teñida (cápsula para `dots`) con su glifo. `size` = radio de la burbuja.
+    static func drawBadge(_ ctx: inout GraphicsContext, glyph: BadgeGlyph, color: RGB, size r: CGFloat, t: Double) {
+        let bounds = glyph == .dots
+            ? CGRect(x: -1.25 * r, y: -0.62 * r, width: 2.5 * r, height: 1.24 * r)
+            : CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r)
+        let bead = glyph == .dots
+            ? Path(roundedRect: bounds, cornerRadius: 0.62 * r)
+            : Path(ellipseIn: bounds)
+        ctx.fill(bead, with: .linearGradient(
+            Gradient(colors: [rgb(mix(color, white, 0.35), 0.96), rgb(color, 0.92), rgb(mix(color, deep, 0.3), 0.95)]),
+            startPoint: CGPoint(x: 0, y: bounds.minY), endPoint: CGPoint(x: 0, y: bounds.maxY)))
+        ctx.stroke(bead, with: .color(Color.white.opacity(0.55)), lineWidth: max(0.6, 0.1 * r))
+        ctx.fill(Path(ellipseIn: CGRect(x: bounds.minX + bounds.width * 0.18, y: bounds.minY + bounds.height * 0.12,
+                                        width: bounds.width * 0.3, height: bounds.height * 0.22)),
+                 with: .color(Color.white.opacity(0.45)))
+
+        // Glifo blanco sobre vidrio oscuro, casi negro sobre vidrio claro.
+        let luma = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b
+        let ink = luma > 0.6 ? Color(red: 0.05, green: 0.07, blue: 0.1) : Color.white
+        let lw = max(0.9, 0.2 * r)
+        switch glyph {
+        case .dots:
+            for i in 0..<3 {
+                let hop = max(0, sin(t * 6.5 - Double(i) * 0.7))
+                let d = 0.26 * r
+                let x = CGFloat(i - 1) * 0.68 * r
+                let y = -CGFloat(hop) * 0.2 * r
+                ctx.fill(Path(ellipseIn: CGRect(x: x - d / 2, y: y - d / 2, width: d, height: d)), with: .color(ink))
+            }
+        case .bang:
+            ctx.fill(Path(roundedRect: CGRect(x: -0.13 * r, y: -0.6 * r, width: 0.26 * r, height: 0.72 * r),
+                          cornerRadius: 0.13 * r), with: .color(ink))
+            ctx.fill(Path(ellipseIn: CGRect(x: -0.14 * r, y: 0.28 * r, width: 0.28 * r, height: 0.28 * r)),
+                     with: .color(ink))
+        case .question:
+            var p = Path()
+            p.move(to: CGPoint(x: -0.3 * r, y: -0.24 * r))
+            p.addQuadCurve(to: CGPoint(x: 0, y: -0.56 * r), control: CGPoint(x: -0.3 * r, y: -0.56 * r))
+            p.addQuadCurve(to: CGPoint(x: 0.3 * r, y: -0.26 * r), control: CGPoint(x: 0.3 * r, y: -0.56 * r))
+            p.addQuadCurve(to: CGPoint(x: 0, y: 0.1 * r), control: CGPoint(x: 0.3 * r, y: -0.02 * r))
+            p.addLine(to: CGPoint(x: 0, y: 0.14 * r))
+            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: lw, lineCap: .round, lineJoin: .round))
+            ctx.fill(Path(ellipseIn: CGRect(x: -0.13 * r, y: 0.36 * r, width: 0.26 * r, height: 0.26 * r)),
+                     with: .color(ink))
+        case .check:
+            var p = Path()
+            p.move(to: CGPoint(x: -0.36 * r, y: 0.02 * r))
+            p.addLine(to: CGPoint(x: -0.1 * r, y: 0.3 * r))
+            p.addLine(to: CGPoint(x: 0.38 * r, y: -0.28 * r))
+            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: lw, lineCap: .round, lineJoin: .round))
+        case .clock:
+            let cr = 0.46 * r
+            ctx.stroke(Path(ellipseIn: CGRect(x: -cr, y: -cr, width: 2 * cr, height: 2 * cr)),
+                       with: .color(ink), lineWidth: max(0.8, 0.13 * r))
+            var hands = Path()
+            hands.move(to: CGPoint(x: 0, y: -0.28 * r))
+            hands.addLine(to: .zero)
+            hands.addLine(to: CGPoint(x: 0.2 * r, y: 0.06 * r))
+            ctx.stroke(hands, with: .color(ink),
+                       style: StrokeStyle(lineWidth: max(0.8, 0.12 * r), lineCap: .round, lineJoin: .round))
+        case .plain:
+            break
+        }
+    }
+
+    /// Burbujita de vidrio (partícula).
+    static func drawBubble(_ ctx: inout GraphicsContext, radius r: CGFloat, tint: RGB) {
+        let circle = Path(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r))
+        ctx.fill(circle, with: .color(rgb(mix(tint, white, 0.5), 0.14)))
+        ctx.stroke(circle, with: .color(Color.white.opacity(0.6)), lineWidth: max(0.5, 0.14 * r))
+        ctx.fill(Path(ellipseIn: CGRect(x: -0.5 * r, y: -0.55 * r, width: 0.36 * r, height: 0.3 * r)),
+                 with: .color(Color.white.opacity(0.75)))
+    }
+
+    /// "z" de dormir hecha con líneas (más liviana que dibujar texto en cada cuadro).
+    static func zGlyph(size s: CGFloat) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: -0.4 * s, y: -0.42 * s))
+        p.addLine(to: CGPoint(x: 0.4 * s, y: -0.42 * s))
+        p.addLine(to: CGPoint(x: -0.4 * s, y: 0.42 * s))
+        p.addLine(to: CGPoint(x: 0.4 * s, y: 0.42 * s))
+        return p
+    }
+}
