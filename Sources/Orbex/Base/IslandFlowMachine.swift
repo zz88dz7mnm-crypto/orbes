@@ -98,8 +98,10 @@ final class IslandFlowMachine {
     private func scheduleGreetCollapse(delay: TimeInterval) {
         greetCollapseWork?.cancel()
         let item = DispatchWorkItem { [weak self] in
-            guard let self, self.state == .greeting else { return }
-            self.transition(to: .petit)
+            MainActor.assumeIsolated {
+                guard let self, self.state == .greeting else { return }
+                self.transition(to: .petit)
+            }
         }
         greetCollapseWork = item
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
@@ -142,8 +144,10 @@ final class IslandFlowMachine {
     private func schedulePetitHide() {
         petitHideWork?.cancel()
         let item = DispatchWorkItem { [weak self] in
-            guard let self, self.state == .petit else { return }
-            self.transition(to: .hidden)
+            MainActor.assumeIsolated {
+                guard let self, self.state == .petit else { return }
+                self.transition(to: .hidden)
+            }
         }
         petitHideWork = item
         DispatchQueue.main.asyncAfter(deadline: .now() + petitToHiddenDelay, execute: item)
@@ -152,10 +156,12 @@ final class IslandFlowMachine {
     private func scheduleHomeCollapse() {
         homeCollapseWork?.cancel()
         let item = DispatchWorkItem { [weak self] in
-            guard let self, self.state == .home else { return }
-            // Alerta fija (permiso, pregunta): se vuelve a mirar más tarde en vez de cerrar.
-            if self.isPinned() { self.scheduleHomeCollapse(); return }
-            self.transition(to: .petit)
+            MainActor.assumeIsolated {
+                guard let self, self.state == .home else { return }
+                // Alerta fija (permiso, pregunta): se vuelve a mirar más tarde en vez de cerrar.
+                if self.isPinned() { self.scheduleHomeCollapse(); return }
+                self.transition(to: .petit)
+            }
         }
         homeCollapseWork = item
         DispatchQueue.main.asyncAfter(deadline: .now() + homeToPetitDelay, execute: item)
