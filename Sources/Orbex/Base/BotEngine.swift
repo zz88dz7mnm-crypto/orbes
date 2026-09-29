@@ -469,24 +469,214 @@ final class BotEngine: ObservableObject {
         }
     }
 
-    // MARK: - Toque (tres seguidos = mareo)
+    // MARK: - Cosquillas (tres clics rápidos = mareo)
 
-    func slap() {
+    /// API heredada: el clic sobre ORBEX ya no es una cachetada sino cosquillas.
+    func slap() { tickle() }
+
+    /// Clic sobre ORBEX: se ríe (ojos felices, se sacude, chispitas). Tres clics en menos de 1,2 s
+    /// lo marean: avisa con `.botDizzy` (la isla pasa a `.dizzy` y muestra la vista `confused`).
+    func tickle() {
         interruptGreet()
         guard state != .dizzy else { return }
         let now = CACurrentMediaTime()
-        slapTimes = slapTimes.filter { now - $0 < 1.7 }
+        slapTimes = slapTimes.filter { now - $0 < 1.2 }
         slapTimes.append(now)
-        sound("slap", gap: 0.08)
+        sound("blip", gap: 0.08)
         squash()
         if slapTimes.count >= 3 {
             slapTimes = []
+            emit(.star, count: 3)
             NotificationCenter.default.post(name: .botDizzy, object: nil)
-        } else {
-            // Molesto 0,8 s, con sonidito un instante después.
-            eyeOverride = .line
-            eyeOverrideUntil = now + 0.8
-            after(0.06) { $0.sound("annoyed", gap: 0.3) }
+            return
+        }
+        let m: CGFloat = reduceMotion ? 0.3 : 1
+        eyeOverride = .happy
+        eyeOverrideUntil = now + 0.9
+        // Risita: se sacude de lado a lado con saltitos cortos.
+        anim("tilt", keys: [
+            TweenKey(target:  0.12 * m, duration: 60,  ease: Ease.out),
+            TweenKey(target: -0.12 * m, duration: 90,  ease: Ease.inOut),
+            TweenKey(target:  0.09 * m, duration: 90,  ease: Ease.inOut),
+            TweenKey(target: -0.06 * m, duration: 90,  ease: Ease.inOut),
+            TweenKey(target:  0,        duration: 140, ease: Ease.out),
+        ])
+        anim("oy", keys: [
+            TweenKey(target: -0.07 * m, duration: 80,  ease: Ease.out),
+            TweenKey(target:  0,        duration: 90,  ease: Ease.inOut),
+            TweenKey(target: -0.05 * m, duration: 80,  ease: Ease.out),
+            TweenKey(target:  0,        duration: 150, ease: Ease.back),
+        ])
+        anim("blush", keys: [
+            TweenKey(target: 0.6, duration: 120, ease: Ease.out),
+            TweenKey(target: 0,   duration: 700, ease: Ease.inOut),
+        ])
+        emit(.spark, count: 3)
+    }
+
+    // MARK: - Caricia (mouse quieto encima)
+
+    /// Caricia: con el mouse quieto encima, ORBEX se ruboriza, cierra los ojos feliz, suelta
+    /// corazoncitos y "ronronea" (vibración suave). La prende y apaga la ventana de la isla.
+    func setPetting(_ on: Bool) {
+        guard !isMini, on != petting else { return }
+        petting = on
+        let now = CACurrentMediaTime()
+        if on {
+            nextPetHeart = now + 0.25
+            nearSince = 0
+        } else if eyeOverride == .happy && eyeOverrideUntil < now + 0.5 {
+            // Abre los ojos con un parpadeo.
+            eyeOverrideUntil = now
+            after(0.02) { $0.blink() }
+        }
+    }
+
+    // MARK: - Despertarse, timidez e idles raros
+
+    /// Al despertar: se sobresalta (ojos grandes, saltito) y después se estira bostezando.
+    func wakeUp() {
+        let now = CACurrentMediaTime()
+        let m: CGFloat = reduceMotion ? 0.3 : 1
+        eyeOverride = .wide
+        eyeOverrideUntil = now + 0.55
+        anim("oy", keys: [
+            TweenKey(target: -0.32 * m, duration: 130, ease: Ease.out),
+            TweenKey(target: 0,         duration: 380, ease: Ease.back),
+        ])
+        anim("es", keys: [
+            TweenKey(target: 1.3, duration: 110, ease: Ease.out),
+            TweenKey(target: 1,   duration: 450, ease: Ease.inOut),
+        ])
+        emit(.spark, count: 2)
+        sound("pop", gap: 0.6)
+        after(0.7) { e in
+            e.anim("armsUp", keys: [
+                TweenKey(target: 0.9, duration: 420, ease: Ease.out),
+                TweenKey(target: 0.9, duration: 380, ease: Ease.lin),
+                TweenKey(target: 0,   duration: 450, ease: Ease.inOut),
+            ])
+            e.anim("sy", keys: [
+                TweenKey(target: 1 + 0.08 * m, duration: 420, ease: Ease.inOut),
+                TweenKey(target: 1 + 0.08 * m, duration: 380, ease: Ease.lin),
+                TweenKey(target: 1,            duration: 450, ease: Ease.inOut),
+            ])
+            e.anim("sx", keys: [
+                TweenKey(target: 1 - 0.05 * m, duration: 420, ease: Ease.inOut),
+                TweenKey(target: 1 - 0.05 * m, duration: 380, ease: Ease.lin),
+                TweenKey(target: 1,            duration: 450, ease: Ease.inOut),
+            ])
+            e.eyeOverride = .tired
+            e.eyeOverrideUntil = CACurrentMediaTime() + 1.0
+            e.sound("yawn", gap: 2)
+        }
+    }
+
+    /// Tímido: el cursor se quedó mucho cerca mirándolo → mira para el otro lado y se ruboriza.
+    private func beShy(now: Double) {
+        shyCooldown = now + 30
+        nearSince = 0
+        let away: CGFloat = lookX >= 0 ? -1 : 1
+        let m: CGFloat = reduceMotion ? 0.35 : 1
+        anim("glanceX", keys: [
+            TweenKey(target: away * 1.0, duration: 260, ease: Ease.out),
+            TweenKey(target: away * 1.0, duration: 1400, ease: Ease.lin),
+            TweenKey(target: 0,          duration: 450, ease: Ease.inOut),
+        ])
+        anim("glanceY", keys: [
+            TweenKey(target: -0.35, duration: 260, ease: Ease.out),
+            TweenKey(target: -0.35, duration: 1400, ease: Ease.lin),
+            TweenKey(target: 0,     duration: 450, ease: Ease.inOut),
+        ])
+        anim("tilt", keys: [
+            TweenKey(target: away * 0.1 * m, duration: 300, ease: Ease.out),
+            TweenKey(target: away * 0.1 * m, duration: 1300, ease: Ease.lin),
+            TweenKey(target: 0,              duration: 450, ease: Ease.inOut),
+        ])
+        anim("blush", keys: [
+            TweenKey(target: 0.95, duration: 350, ease: Ease.out),
+            TweenKey(target: 0.95, duration: 1300, ease: Ease.lin),
+            TweenKey(target: 0,    duration: 600, ease: Ease.inOut),
+        ])
+        after(0.35) { $0.blink() }
+        after(1.5) { $0.blink() }
+    }
+
+    /// Idles raros (aburrido): juega con una burbuja, estornudo, guiño, orgulloso, vuelta u ojos de corazón.
+    private func startRareIdle(now: Double) {
+        switch Int.random(in: 0..<6) {
+        case 0:
+            // Juega con una burbuja que le rebota en la cabeza; al final la pincha.
+            bubblePlayStart = now
+            let d = Self.bubblePlayDur
+            for k in [1.0 / 3.0, 2.0 / 3.0] {
+                after(d * k) { e in
+                    guard e.bubblePlayStart == now else { return }
+                    e.anim("sy", keys: [
+                        TweenKey(target: 0.93, duration: 70,  ease: Ease.out),
+                        TweenKey(target: 1,    duration: 200, ease: Ease.back),
+                    ])
+                }
+            }
+            after(d) { e in
+                guard e.bubblePlayStart == now else { return }
+                e.bubblePlayStart = 0
+                e.emit(.spark, count: 3)
+                e.sound("pop", gap: 1)
+                e.eyeOverride = .happy
+                e.eyeOverrideUntil = CACurrentMediaTime() + 0.6
+                e.anim("glanceY", keys: [TweenKey(target: 0, duration: 350, ease: Ease.inOut)])
+            }
+        case 1:
+            sneeze()
+        case 2:
+            triggerEmote(.wink, duration: 1.0)
+        case 3:
+            triggerEmote(.proud, duration: 1.6)
+        case 4:
+            doRoll(duration: 1100, turns: 1)
+            emit(.spark, count: 3)
+        default:
+            triggerEmote(.love, duration: 1.4, silent: true)
+        }
+    }
+
+    /// Estornudo: toma aire (se estira entrecerrando los ojos) y ¡achís! (se aplasta, cabecea y suelta burbujitas).
+    private func sneeze() {
+        let now = CACurrentMediaTime()
+        eyeOverride = .tired
+        eyeOverrideUntil = now + 0.6
+        anim("sy", keys: [
+            TweenKey(target: 1.08, duration: 550, ease: Ease.inOut),
+            TweenKey(target: 0.82, duration: 70,  ease: Ease.out),
+            TweenKey(target: 1.05, duration: 150, ease: Ease.out),
+            TweenKey(target: 1,    duration: 220, ease: Ease.back),
+        ])
+        anim("sx", keys: [
+            TweenKey(target: 0.95, duration: 550, ease: Ease.inOut),
+            TweenKey(target: 1.13, duration: 70,  ease: Ease.out),
+            TweenKey(target: 0.97, duration: 150, ease: Ease.out),
+            TweenKey(target: 1,    duration: 220, ease: Ease.back),
+        ])
+        anim("glanceY", keys: [
+            TweenKey(target: 0.5,  duration: 550, ease: Ease.inOut),
+            TweenKey(target: -0.4, duration: 80,  ease: Ease.out),
+            TweenKey(target: 0,    duration: 400, ease: Ease.inOut),
+        ])
+        after(0.56) { e in
+            e.eyeOverride = .closed
+            e.eyeOverrideUntil = CACurrentMediaTime() + 0.3
+            e.anim("ox", keys: [
+                TweenKey(target: -0.06, duration: 60,  ease: Ease.out),
+                TweenKey(target:  0.03, duration: 120, ease: Ease.inOut),
+                TweenKey(target:  0,    duration: 160, ease: Ease.out),
+            ])
+            e.emit(.bubble, count: 4)
+            e.sound("pop", gap: 1)
+        }
+        after(0.95) { e in
+            e.eyeOverride = .dot
+            e.eyeOverrideUntil = CACurrentMediaTime() + 0.5
         }
     }
 
@@ -783,6 +973,24 @@ final class BotEngine: ObservableObject {
                 p.vy = -(0.35 + CGFloat.random(in: 0...0.25))
                 p.size = 0.07 + CGFloat.random(in: 0...0.06)
                 p.life = 1.1 + Double.random(in: 0...0.5)
+            case .confetti:
+                // Esquirlas de vidrio de colores: salen para arriba y caen (la gravedad va al dibujar).
+                p.x = CGFloat.random(in: -0.3...0.3)
+                p.y = -0.6
+                p.vx = CGFloat.random(in: -0.9...0.9)
+                p.vy = -(0.9 + CGFloat.random(in: 0...0.6))
+                p.age = -Double(i) * 0.02
+                p.life = 1.5 + Double.random(in: 0...0.5)
+                p.size = 0.07 + CGFloat.random(in: 0...0.05)
+            case .question:
+                // Signo de pregunta que sube despacio al costado de la cabeza.
+                p.x = 0.62 + CGFloat.random(in: -0.08...0.08)
+                p.y = -0.55
+                p.vx = 0.05
+                p.vy = -0.32
+                p.age = 0
+                p.life = 1.6
+                p.size = 0.18
             default:
                 break
             }
@@ -842,6 +1050,11 @@ final class BotEngine: ObservableObject {
                 ty += (lazyX * motion - ty) * k
                 tp += (lazyY * motion - tp) * k
             }
+            // Juega con una burbuja: los ojos la siguen.
+            if let b = bubblePlayPos(now) {
+                if !locks.contains("glanceX") { glanceX = b.x * 0.8 }
+                if !locks.contains("glanceY") { glanceY = 0.55 + b.hop * 0.35 }
+            }
             ty += glanceX * 0.6
             tp += glanceY * 0.45
             if let g = gesture, g.kind == .followDot {
@@ -882,6 +1095,10 @@ final class BotEngine: ObservableObject {
         tgTilt  = cfg.tilt
         if state == .dizzy { tgTilt += sin(t * 5) * 0.09 * motion }
 
+        if !isMini {
+            updateRelation(now: now, t: t, dt: dt, motion: motion)
+        }
+
         // Balanceo del cuerpo mientras saluda
         if now > waveStart && now < waveUntil {
             let wt = CGFloat(now - waveStart)
@@ -889,8 +1106,10 @@ final class BotEngine: ObservableObject {
         }
 
         // Rebote (pide permiso) y trotecito en el lugar (trabajando, de cuerpo entero)
-        var bounce: CGFloat = cfg.bounces ? -abs(sin(t * 5.2)) * 0.07 * motion : 0
+        var bounce: CGFloat = cfg.bounces ? -abs(sin(t * 5.2)) * (0.07 + 0.07 * limbs) * motion : 0
         if state == .working && !reduceMotion { bounce -= abs(sin(t * 8)) * 0.018 * limbs }
+        if carried { bounce = sin(t * 3) * 0.05 * motion }   // globo: sube y baja
+        bounce += deflate * 0.08                              // desinflado: se hunde un poco
         if !locks.contains("oy") { oy += (bounce - oy) * CGFloat(1 - pow(0.0008, dt)) }
 
         // Respiración (siempre; más honda dormido; casi nada con "reducir movimiento") y flotación
@@ -908,6 +1127,18 @@ final class BotEngine: ObservableObject {
             tgSx = 1 - b * 0.6
         }
         floatY = (isMini || reduceMotion) ? 0 : CGFloat(LifeScheduler.floatOffset(at: Double(t))) * 2
+        if !isMini {
+            // Desinflado (límite de uso): más bajito y más ancho.
+            if deflate > 0.001 {
+                tgSy *= 1 - 0.14 * deflate
+                tgSx *= 1 + 0.08 * deflate
+            }
+            // Globo: estirado hacia arriba.
+            if carried {
+                tgSy *= 1.05
+                tgSx *= 0.97
+            }
+        }
 
         // Mini: comportamientos periódicos
         if isMini && now > miniNextBehavior {
@@ -940,12 +1171,14 @@ final class BotEngine: ObservableObject {
             if cfg.zz { emit(.z, count: 1) }
             if cfg.sweat && Double.random(in: 0...1) < 0.5 { emit(.sweat, count: 1) }
             if state == .thinking && Double.random(in: 0...1) < 0.35 { emit(.bubble, count: 1) }
+            if state == .error && Double.random(in: 0...1) < 0.45 { emit(.sweat, count: 1) }
+            if state == .question && Double.random(in: 0...1) < 0.5 { emit(.question, count: 1) }
         }
         for i in particles.indices { particles[i].age += dt }
         particles.removeAll { $0.age >= $0.life }
 
         // Cuerpo entero (vista abierta) y agachada (dormido), con transición suave
-        let wantLimbs: CGFloat = (fullBody && !isMini) ? 1 : 0
+        let wantLimbs: CGFloat = ((fullBody || carried) && !isMini) ? 1 : 0
         limbs += (wantLimbs - limbs) * CGFloat(1 - exp(-dt * 9))
         let wantCrouch: CGFloat = state == .sleeping ? 1 : 0
         crouch += (wantCrouch - crouch) * CGFloat(1 - exp(-dt * 3))
@@ -978,6 +1211,21 @@ final class BotEngine: ObservableObject {
             }
             if blush > 0.01 {
                 OrbexPainter.drawWarmth(&ctx, D: D, amount: Double(blush))
+            }
+            // Extras del estado dentro del vidrio (se apagan mientras es portal).
+            let inside = Double(max(0, 1 - morph * 2))
+            if inside > 0.01 {
+                let lt = now - t0
+                if state == .working {
+                    OrbexPainter.drawInnerBubbles(&ctx, D: D, t: lt * (reduceMotion ? 0.35 : 1),
+                                                  tint: frameTint, alpha: inside)
+                } else if state == .searching {
+                    OrbexPainter.drawSweep(&ctx, D: D, k: (lt * (reduceMotion ? 0.25 : 0.55))
+                        .truncatingRemainder(dividingBy: 1), alpha: inside)
+                }
+                if fog > 0.01 {
+                    OrbexPainter.drawFog(&ctx, D: D, amount: Double(fog) * inside)
+                }
             }
             // Portal de vidrio (subir archivo)
             if morph > 0.02 {
@@ -1021,13 +1269,20 @@ final class BotEngine: ObservableObject {
         legs.opacity = Double(min(1, g.legs * 1.5))
         let hop = max(0, -(oy + floatY)) * R
         let shrink = max(0.4, 1 - hop / D * 2)
-        OrbexPainter.drawFloorGlow(&legs, center: CGPoint(x: g.cx, y: g.restY + 1.4 * R),
-                                   width: 1.8 * R * shrink, height: 0.16 * R * shrink,
-                                   alpha: 0.10 * Double(shrink))
+        if !carried {
+            OrbexPainter.drawFloorGlow(&legs, center: CGPoint(x: g.cx, y: g.restY + 1.4 * R),
+                                       width: 1.8 * R * shrink, height: 0.16 * R * shrink,
+                                       alpha: 0.10 * Double(shrink))
+        }
         let walking = state == .working && !reduceMotion
         let step = walking ? sin((now - t0) * 8) : 0
         for sd in [-1.0, 1.0] {
-            let lift = CGFloat(max(0, sd < 0 ? step : -step) * 0.05) * D
+            var lift = CGFloat(max(0, sd < 0 ? step : -step) * 0.05) * D
+            if carried {
+                // Globo: las piernitas patalean en el aire, alternadas.
+                let kick = sin((now - t0) * (reduceMotion ? 5 : 14) + (sd < 0 ? 0 : .pi))
+                lift = CGFloat(0.02 + kick * 0.06) * D
+            }
             let footY = g.hopY + (0.68 + 0.62 * g.legs) * R - lift
             OrbexPainter.drawLeg(&legs, side: sd, bodyCenter: CGPoint(x: g.cx, y: g.cy), footY: footY,
                                  D: D, tint: frameTint, crouch: Double(crouch), material: material)
@@ -1043,6 +1298,21 @@ final class BotEngine: ObservableObject {
             drawArms(context, g: g, now: now)
             if let gs = gesture, gs.kind == .followDot {
                 drawImaginaryDot(context, g: g, progress: (now - gs.start) / gs.kind.duration)
+            }
+            let center = CGPoint(x: g.cx, y: g.cy)
+            let lt = now - t0
+            if state == .thinking && morph < 0.25 {
+                OrbexPainter.drawOrbitDots(context, center: center, R: g.R, t: lt * (reduceMotion ? 0.35 : 1),
+                                           color: rgbTuple(cfg.color))
+            }
+            if state == .dizzy {
+                OrbexPainter.drawDizzyStars(context, center: center, R: g.R, t: lt * (reduceMotion ? 0.35 : 1))
+            }
+            if let b = bubblePlayPos(now) {
+                var c = context
+                c.translateBy(x: g.cx + b.x * g.R, y: g.cy + b.y * g.R)
+                c.opacity = Double(b.alpha)
+                OrbexPainter.drawBubble(&c, radius: g.R * 0.2, tint: frameTint)
             }
         }
 
@@ -1077,7 +1347,7 @@ final class BotEngine: ObservableObject {
         let restY = size.height / 2 + particleOverhang / 2 + R * 0.06 - R * 0.2 * legs
         let hopY = restY + (oy + floatY) * R
         let cy = hopY + crouch * 0.26 * R * legs
-        return Geo(R: R, cx: size.width / 2 + ox * R, cy: cy, hopY: hopY, restY: restY, legs: legs, arms: arms)
+        return Geo(R: R, cx: size.width / 2 + (ox + purrX) * R, cy: cy, hopY: hopY, restY: restY, legs: legs, arms: arms)
     }
 
     /// Contexto del cuerpo: centro, inclinación y squash & stretch (parado se aplasta desde los pies).
@@ -1181,8 +1451,14 @@ final class BotEngine: ObservableObject {
         switch state {
         case .working:
             return 0.16 + (calm ? 0 : sin(t * 8 + phase * .pi) * 0.2 * Double(limbs))
-        case .approval, .question:
+        case .approval:
+            // Levanta la mano (derecha) como pidiendo la palabra; la otra acompaña el salto.
+            if side > 0 { return 2.3 + (calm ? 0 : sin(t * 7) * 0.16) }
             return 0.42 + (calm ? 0 : abs(sin(t * 5.2)) * 0.16)
+        case .question:
+            // Mano "pensativa" a medio subir.
+            if side < 0 { return 0.9 + (calm ? 0 : sin(t * 1.3) * 0.08) }
+            return 0.3
         case .error:
             return 0.3
         case .sleeping:
@@ -1245,7 +1521,8 @@ final class BotEngine: ObservableObject {
             let a = k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8
             let age = CGFloat(p.age)
             var px = g.cx + (p.x + p.vx * age) * R * 1.3
-            let py = g.cy + (p.y + p.vy * age) * R * 1.3
+            var py = g.cy + (p.y + p.vy * age) * R * 1.3
+            if p.type == .confetti { py += 1.1 * age * age * R * 1.3 }   // gravedad
             if p.type == .bubble { px += sin(age * 6 + p.rot) * R * 0.06 }
             let sz = R * p.size * (1 + k * 0.4)
 
@@ -1277,6 +1554,15 @@ final class BotEngine: ObservableObject {
                          style: StrokeStyle(lineWidth: max(1, sz * 0.26), lineCap: .round, lineJoin: .round))
             case .bubble:
                 OrbexPainter.drawBubble(&c, radius: max(1.2, sz * 0.7), tint: frameTint)
+            case .confetti:
+                c.rotate(by: .radians(p.rot + age * 7))
+                c.scaleBy(x: 1, y: max(0.2, abs(cos(age * 9 + p.rot))))   // da vueltas en el aire
+                OrbexPainter.drawConfetti(&c, size: max(1.5, sz * 1.6), hue: Int(p.rot * 10))
+            case .question:
+                c.rotate(by: .radians(sin(age * 3) * 0.2))
+                c.stroke(OrbexPainter.questionGlyph(size: max(4, sz * 2.2)),
+                         with: .color(Color(red: 0.6, green: 0.95, blue: 1)),
+                         style: StrokeStyle(lineWidth: max(1, sz * 0.3), lineCap: .round, lineJoin: .round))
             }
         }
     }
@@ -1316,6 +1602,7 @@ final class BotEngine: ObservableObject {
         if let g = gesture, now - g.start > g.kind.duration { gesture = nil }
         let calm = state == .idle && eyeOverride == nil && morph < 0.02 && now > waveUntil
         let allowGestures = !isMini && !reduceMotion && calm && gesture == nil
+            && bubblePlayStart == 0 && !petting && !carried
         for event in life.update(now: now, allowGestures: allowGestures) {
             switch event {
             case .blink(let double):
@@ -1325,8 +1612,8 @@ final class BotEngine: ObservableObject {
             case .microgesture(let g):
                 startGesture(g, now: now)
             case .surprise:
-                // Las sorpresas grandes son de la etapa de animaciones nuevas; por ahora, unas chispitas.
-                emit(.spark, count: 3)
+                // Idles raros (burbuja, estornudo, guiño, orgulloso…): el motor elige cuál.
+                startRareIdle(now: now)
             }
         }
     }
@@ -1429,6 +1716,77 @@ final class BotEngine: ObservableObject {
         userTint = model.brain.tint.rgb
         let level = model.settings.lifeLevel
         if life.level != level { life.level = level }
+        if !lifeTuned {
+            // ~1 de cada 8 microgestos es un idle raro (con el aburrimiento aparecen solos).
+            life.surpriseChance = 0.12
+            lifeTuned = true
+        }
+    }
+
+    /// Caricia, cosquillas, timidez, globo y extras suaves por estado (una vez por cuadro, sin nada pesado).
+    private func updateRelation(now: Double, t: CGFloat, dt: Double, motion: CGFloat) {
+        let k = CGFloat(1 - exp(-dt * 4))
+        fog += ((state == .error ? 1 : 0) - fog) * CGFloat(1 - exp(-dt * 1.5))
+        deflate += ((state == .ratelimit ? 1 : 0) - deflate) * CGFloat(1 - exp(-dt * 1.2))
+        if state != .idle { bubblePlayStart = 0 }
+
+        // Pregunta: cabeza ladeada que se hamaca despacio.
+        if state == .question { tgTilt += sin(t * 1.3) * 0.05 * motion }
+
+        // Se inclina hacia el cursor (más de cuerpo entero).
+        if !carried && state != .sleeping && state != .dizzy && morph < 0.3 {
+            tgTilt += lookX * (0.035 + 0.05 * limbs) * motion
+        }
+
+        // Caricia: ojos felices, rubor, corazoncitos, ronroneo y hamaca.
+        petK += ((petting ? 1 : 0) - petK) * k
+        if petting || petK > 0.001 {
+            if petting && petK > 0.3 && (eyeOverride == nil || eyeOverride == .happy) {
+                eyeOverride = .happy
+                eyeOverrideUntil = now + 0.2
+            }
+            if !locks.contains("blush") { blush += (petK * 0.9 - blush) * k }
+            if petting && now >= nextPetHeart {
+                emit(.heart, count: 1)
+                nextPetHeart = now + Double.random(in: 0.7...1.2)
+            }
+            tgTilt += sin(t * 1.4) * 0.05 * petK * motion
+        }
+        purrX = reduceMotion ? 0 : CGFloat(sin(now * 44)) * 0.008 * petK
+
+        // Globo (fantasma que se arrastra): se hamaca con los brazos arriba y ojos felices.
+        if carried {
+            tgTilt = sin(t * 2.6) * 0.12 * motion
+            if !locks.contains("armsUp") { armsUp += (1 - armsUp) * k }
+            if eyeOverride == nil {
+                eyeOverride = .happy
+                eyeOverrideUntil = now + 0.2
+            }
+        }
+
+        // Timidez: el cursor se queda cerca mirándolo más de 4 s.
+        let near = abs(lookX) < 0.5 && abs(lookY) < 0.6
+        let calmIdle = state == .idle && !petting && !carried && morph < 0.1 && limbs > 0.5 && eyeOverride == nil
+        if near && calmIdle {
+            if nearSince == 0 {
+                nearSince = now
+            } else if now - nearSince > 4 && now > shyCooldown {
+                beShy(now: now)
+            }
+        } else if !near || petting {
+            nearSince = 0
+        }
+    }
+
+    /// Burbuja con la que juega (idle raro): posición en unidades de R desde el centro del cuerpo.
+    private func bubblePlayPos(_ now: Double) -> (x: CGFloat, y: CGFloat, hop: CGFloat, alpha: CGFloat)? {
+        guard bubblePlayStart > 0 else { return nil }
+        let p = (now - bubblePlayStart) / Self.bubblePlayDur
+        guard p >= 0, p < 1 else { return nil }
+        let hop = CGFloat(abs(sin(p * 3 * .pi)))
+        let x = CGFloat(sin(p * 2 * .pi)) * 0.18
+        let y = -1.14 - hop * 0.85
+        return (x, y, hop, CGFloat(min(1, p / 0.08)))
     }
 
     /// Tinte del vidrio: color de marca o el que eligió el usuario, teñido por el color del estado.

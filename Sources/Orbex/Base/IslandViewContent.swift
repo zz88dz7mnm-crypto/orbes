@@ -264,8 +264,11 @@ struct ApprovalView: View {
                             confirmingAlways = true
                             let id = a.id
                             // La confirmación vence sola: un clic distraído no queda armado.
+                            let flag = $confirmingAlways
                             DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                                if SessionsStore.shared.approvals.first?.id == id { confirmingAlways = false }
+                                MainActor.assumeIsolated {
+                                    if SessionsStore.shared.approvals.first?.id == id { flag.wrappedValue = false }
+                                }
                             }
                         }
                         .help("Permitir siempre \(tool) en \(project) (te pido confirmación)")
@@ -409,7 +412,7 @@ struct ErrorView: View {
         let s = bridge.endedSession(for: .failed)
         let task = s.flatMap { bridge.task(forSession: $0.id) } ?? state.focusTask
         let detail = s?.steps.last?.text ?? task?.steps.last ?? "Se detuvo por un error."
-        let prompt = s.flatMap(SessionsBridge.lastPrompt)
+        let prompt = s.flatMap { SessionsBridge.lastPrompt($0) }
 
         return ZStack {
             CardBackground(wash: .red)
@@ -453,9 +456,9 @@ struct FinishedView: View {
     var body: some View {
         let s = bridge.endedSession(for: .finished)
         let task = s.flatMap { bridge.task(forSession: $0.id) } ?? state.focusTask
-        let prompt = s.flatMap(SessionsBridge.lastPrompt)
-        let work = s.flatMap(SessionsBridge.lastWork)
-        let duration = s.flatMap(SessionsBridge.durationText)
+        let prompt = s.flatMap { SessionsBridge.lastPrompt($0) }
+        let work = s.flatMap { SessionsBridge.lastWork($0) }
+        let duration = s.flatMap { SessionsBridge.durationText($0) }
         let title = prompt ?? work ?? task?.steps.last ?? "Listo"
 
         return ZStack {

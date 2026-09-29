@@ -9,6 +9,8 @@ import QuartzCore
 struct BotCanvasView: View {
     @ObservedObject var state: AppState
     var particleOverhang: CGFloat = 0
+    /// `true` en el fantasma que se arrastra: ORBEX es un globo que patalea.
+    var carried: Bool = false
 
     @StateObject private var engine = BotEngine()
 
@@ -24,6 +26,7 @@ struct BotCanvasView: View {
                 engine.lookX = lookX(state: state, size: size)
                 engine.lookY = lookY(state: state, size: size)
                 engine.particleOverhang = particleOverhang
+                engine.carried = carried
                 // Cuerpo entero (brazos, piernitas y pies) solo en la vista abierta.
                 engine.fullBody = state.mode == .expanded && state.view != .uploading
                 // Archivo encima del portal: se entreabre. El motor decide la apertura final y no
@@ -67,8 +70,15 @@ struct BotCanvasView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .triggerSlap)) { _ in
+            // Clic sobre ORBEX: cosquillas (tres rápidos = mareo).
+            guard !carried else { return }
             engine.audible = canSpeak
-            engine.slap()
+            engine.tickle()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .botPet)) { notif in
+            // Caricia: mouse quieto encima de ORBEX en la vista abierta.
+            guard !carried else { return }
+            engine.setPetting((notif.object as? Bool) ?? false)
         }
         .onReceive(NotificationCenter.default.publisher(for: .botBlink)) { _ in
             engine.blink()

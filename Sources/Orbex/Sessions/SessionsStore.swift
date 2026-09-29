@@ -121,9 +121,8 @@ final class SessionsStore: ObservableObject {
         let alreadyNotified = signals.contains { $0 == .needsPermission || $0 == .question }
         handle(signals, event: event)
         if !alreadyNotified { playNeedsYou() }
-        if SessionsKeys.bool(SessionsKeys.autoOpen, default: true) {
-            OrbexBus.show(.sessions)
-        }
+        // Abrir la isla (vista de permiso o de pregunta, fija) lo hace `SessionsBridge`
+        // según el ajuste "Abrir la isla cuando Claude pide permiso".
         publish()
     }
 

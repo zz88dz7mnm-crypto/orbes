@@ -712,6 +712,104 @@ extension OrbexPainter {
                  with: .color(Color.white.opacity(0.75)))
     }
 
+    // MARK: Extras por estado y de la relación con el usuario (todo liviano: pocos paths por cuadro)
+
+    /// Trabajando: burbujitas que suben dentro del vidrio. Centrado en el cuerpo, `t` en segundos.
+    static func drawInnerBubbles(_ ctx: inout GraphicsContext, D: CGFloat, t: Double, tint: RGB, alpha: Double) {
+        let r = D / 2
+        var c = ctx
+        c.clip(to: Path(ellipseIn: CGRect(x: -r, y: -r, width: D, height: D)))
+        for i in 0..<5 {
+            let fi = Double(i)
+            let p = (t * (0.32 + 0.05 * fi) + fi / 5).truncatingRemainder(dividingBy: 1)
+            let x = CGFloat(sin(fi * 2.3) * 0.5 + sin(t * 3 + fi) * 0.06) * r
+            let y = CGFloat(0.85 - 1.7 * p) * r
+            let br = r * CGFloat(0.045 + 0.02 * (fi.truncatingRemainder(dividingBy: 3))) * CGFloat(0.7 + 0.3 * p)
+            var b = c
+            b.translateBy(x: x, y: y)
+            b.opacity = alpha * sin(.pi * p)
+            drawBubble(&b, radius: max(0.8, br), tint: tint)
+        }
+    }
+
+    /// Buscando: reflejo diagonal que barre el cuerpo de izquierda a derecha (`k` = 0…1).
+    static func drawSweep(_ ctx: inout GraphicsContext, D: CGFloat, k: Double, alpha: Double) {
+        let r = D / 2
+        var c = ctx
+        c.clip(to: Path(ellipseIn: CGRect(x: -r, y: -r, width: D, height: D)))
+        c.translateBy(x: CGFloat(k * 3 - 1.5) * r, y: 0)
+        c.rotate(by: .radians(0.45))
+        let w = 0.32 * r
+        c.fill(Path(CGRect(x: -w / 2, y: -1.6 * r, width: w, height: 3.2 * r)), with: .linearGradient(
+            Gradient(colors: [Color.white.opacity(0), Color.white.opacity(0.38 * alpha), Color.white.opacity(0)]),
+            startPoint: CGPoint(x: -w / 2, y: 0), endPoint: CGPoint(x: w / 2, y: 0)))
+    }
+
+    /// Error: vidrio empañado (velo blanquecino con manchitas fijas).
+    static func drawFog(_ ctx: inout GraphicsContext, D: CGFloat, amount: Double) {
+        let r = D / 2
+        ctx.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: D, height: D)), with: .radialGradient(
+            Gradient(colors: [Color.white.opacity(0.10 * amount), Color.white.opacity(0.30 * amount)]),
+            center: .zero, startRadius: 0, endRadius: r))
+        let spots: [(CGFloat, CGFloat, CGFloat)] = [(-0.45, 0.35, 0.3), (0.4, 0.45, 0.24), (0.1, -0.55, 0.22), (-0.2, 0.62, 0.18)]
+        for (x, y, s) in spots {
+            ctx.fill(Path(ellipseIn: CGRect(x: (x - s / 2) * r, y: (y - s / 2) * r, width: s * r, height: s * 0.8 * r)),
+                     with: .color(Color.white.opacity(0.16 * amount)))
+        }
+    }
+
+    /// Pensando: tres puntitos en órbita alrededor de la cabeza (los de atrás, más chicos y tenues).
+    /// En coordenadas del lienzo.
+    static func drawOrbitDots(_ ctx: GraphicsContext, center: CGPoint, R: CGFloat, t: Double, color: RGB) {
+        let col = mix(color, white, 0.45)
+        for i in 0..<3 {
+            let a = t * 2.4 + Double(i) * 2 * .pi / 3
+            let depth = sin(a)                        // > 0 adelante
+            let x = center.x + CGFloat(cos(a)) * 1.25 * R
+            let y = center.y - 0.35 * R + CGFloat(depth) * 0.28 * R
+            let d = max(1.5, R * CGFloat(0.13 + 0.05 * depth))
+            var c = ctx
+            c.opacity = depth > 0 ? 0.95 : 0.35
+            c.fill(Path(ellipseIn: CGRect(x: x - d / 2, y: y - d / 2, width: d, height: d)), with: .color(rgb(col, 1)))
+        }
+    }
+
+    /// Mareado: estrellitas doradas que giran sobre la cabeza. En coordenadas del lienzo.
+    static func drawDizzyStars(_ ctx: GraphicsContext, center: CGPoint, R: CGFloat, t: Double) {
+        for i in 0..<3 {
+            let a = t * 4 + Double(i) * 2 * .pi / 3
+            let depth = sin(a)
+            var c = ctx
+            c.translateBy(x: center.x + CGFloat(cos(a)) * 0.8 * R, y: center.y - 1.05 * R + CGFloat(depth) * 0.18 * R)
+            c.rotate(by: .radians(t * 3 + Double(i)))
+            c.opacity = depth > 0 ? 1 : 0.45
+            let s = max(3, R * CGFloat(0.3 + 0.08 * depth))
+            c.fill(sparkle(size: s), with: .color(Color(red: 1, green: 0.86, blue: 0.36)))
+        }
+    }
+
+    /// Confeti de vidrio: esquirla redondeada de un color de la paleta de estados.
+    static func drawConfetti(_ ctx: inout GraphicsContext, size s: CGFloat, hue: Int) {
+        let palette: [RGB] = [(0.23, 0.62, 1), (0.55, 0.36, 0.97), (0.2, 0.83, 0.6), (0.96, 0.65, 0.14), (0.96, 0.45, 0.71)]
+        let c = palette[((hue % palette.count) + palette.count) % palette.count]
+        let rect = CGRect(x: -s / 2, y: -s * 0.3, width: s, height: s * 0.6)
+        ctx.fill(Path(roundedRect: rect, cornerRadius: s * 0.15), with: .color(rgb(mix(c, white, 0.25), 0.9)))
+        ctx.fill(Path(CGRect(x: -s * 0.35, y: -s * 0.22, width: s * 0.35, height: s * 0.12)),
+                 with: .color(Color.white.opacity(0.6)))
+    }
+
+    /// Signo de pregunta hecho con trazos (para `stroke`): el punto es un circulito que al trazarse se llena.
+    static func questionGlyph(size s: CGFloat) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: -0.3 * s, y: -0.24 * s))
+        p.addQuadCurve(to: CGPoint(x: 0, y: -0.52 * s), control: CGPoint(x: -0.3 * s, y: -0.52 * s))
+        p.addQuadCurve(to: CGPoint(x: 0.3 * s, y: -0.24 * s), control: CGPoint(x: 0.3 * s, y: -0.52 * s))
+        p.addQuadCurve(to: CGPoint(x: 0, y: 0.1 * s), control: CGPoint(x: 0.3 * s, y: 0))
+        p.addLine(to: CGPoint(x: 0, y: 0.16 * s))
+        p.addEllipse(in: CGRect(x: -0.02 * s, y: 0.4 * s, width: 0.04 * s, height: 0.04 * s))
+        return p
+    }
+
     /// "z" de dormir hecha con líneas (más liviana que dibujar texto en cada cuadro).
     static func zGlyph(size s: CGFloat) -> Path {
         var p = Path()
