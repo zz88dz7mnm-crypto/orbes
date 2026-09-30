@@ -25,17 +25,23 @@ enum VoiceSettings {
         static let allowCloud = "orbex.voice.allowCloud"
     }
 
-    /// Idiomas que se pueden elegir (identificador, nombre en pantalla).
-    static let languages: [(id: String, name: String)] = [
-        ("auto", "Automático (el de tu Mac, si es español)"),
-        ("es-AR", "Español (Argentina)"),
-        ("es-ES", "Español (España)"),
-        ("es-MX", "Español (México)"),
-        ("es-US", "Español (EE. UU.)"),
+    struct Language: Identifiable {
+        /// "auto" o identificador de idioma.
+        let id: String
+        let name: String
+    }
+
+    /// Idiomas que se pueden elegir.
+    static let languages: [Language] = [
+        Language(id: "auto", name: "Automático (el de tu Mac, si es español)"),
+        Language(id: "es-AR", name: "Español (Argentina)"),
+        Language(id: "es-ES", name: "Español (España)"),
+        Language(id: "es-MX", name: "Español (México)"),
+        Language(id: "es-US", name: "Español (EE. UU.)"),
     ]
 
     /// Variantes del nombre que ya reconoce (solo para mostrar; las entiende `WakeWordMatcher`).
-    static let builtInNames = ["Orbex", "Orbi", "Orbes", "Orbe", "Orbis", "Orvex"]
+    static let builtInNames = ["Orbex", "Orbi", "Orbes", "Orbis", "Orby", "Orvex"]
 
     private static var defaults: UserDefaults { .standard }
 

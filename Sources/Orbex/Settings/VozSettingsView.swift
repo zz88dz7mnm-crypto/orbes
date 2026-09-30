@@ -66,7 +66,7 @@ struct VozSettingsView: View {
                 LabeledContent("Atajo") {
                     Text(voice.hotKeyLabel ?? (enabled && pushToTalk ? "No disponible" : "⌃⌥Espacio"))
                         .font(.system(.body, design: .rounded).weight(.semibold))
-                        .foregroundStyle(voice.hotKeyLabel == nil ? .secondary : .primary)
+                        .foregroundStyle(voice.hotKeyLabel == nil ? Color.secondary : Color.primary)
                 }
                 SettingsFootnote(text: "Tocalo, decí el pedido (sin el nombre) y callate: ORBEX entiende que terminaste. Tocalo de nuevo para cortar antes. Si macOS usa ⌃⌥Espacio para cambiar la fuente de entrada, ORBEX usa ⌃⌥V.")
                 Toggle("Mantener apretado ORBEX en la isla para hablarle", isOn: $longPress)
@@ -121,7 +121,7 @@ struct VozSettingsView: View {
                 if voice.isTesting {
                     Text(voice.testText.isEmpty ? "Decí algo… por ejemplo \"Orbex, abrí Spotify\"." : "“\(voice.testText)”")
                         .font(.callout)
-                        .foregroundStyle(voice.testText.isEmpty ? .secondary : .primary)
+                        .foregroundStyle(voice.testText.isEmpty ? Color.secondary : Color.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     if voice.testHeardName {
                         Label("¡Escuché su nombre!", systemImage: "checkmark.seal.fill")
@@ -140,7 +140,7 @@ struct VozSettingsView: View {
                     .onSubmit { voice.settingsDidChange() }
                 SettingsFootnote(text: "Una palabra por nombre. El nombre va al principio: \"Orbi, poné un timer\" sí; \"poné un timer, Orbi\" no.")
                 Picker("Idioma", selection: $localeID) {
-                    ForEach(VoiceSettings.languages, id: \.id) { lang in
+                    ForEach(VoiceSettings.languages) { lang in
                         Text(lang.name).tag(lang.id)
                     }
                 }
@@ -151,11 +151,11 @@ struct VozSettingsView: View {
             }
 
             Section("Qué le podés pedir") {
-                ForEach(Self.examples, id: \.0) { example in
+                ForEach(0..<Self.examples.count, id: \.self) { i in
                     LabeledContent {
-                        Text(example.1).foregroundStyle(.secondary)
+                        Text(Self.examples[i].1).foregroundStyle(.secondary)
                     } label: {
-                        Text("“\(example.0)”")
+                        Text("“\(Self.examples[i].0)”")
                     }
                 }
                 SettingsFootnote(text: "Lo que no es un comando de ORBEX va al chat con Claude. Si tenés prendidas las herramientas de Claude, el pedido queda escrito en el chat y lo mandás vos.")
