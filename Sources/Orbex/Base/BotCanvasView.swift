@@ -127,6 +127,18 @@ struct BotCanvasView: View {
             guard !carried, let level = BotCanvasVoiceNote.level(notif.object) else { return }
             engine.setVoiceLevel(level)
         }
+        // Voz de salida (Orbi habla): empieza/termina y nivel (~20 Hz) para el latido del brillo,
+        // los ojos, los anillos celestes y el brazo. Puede postear desde otro hilo.
+        .onReceive(NotificationCenter.default.publisher(for: BotCanvasVoiceNote.speaking)
+            .receive(on: DispatchQueue.main)) { notif in
+            guard !carried else { return }
+            engine.voiceSpeaking(BotCanvasVoiceNote.bool(notif.object))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: BotCanvasVoiceNote.outLevel)
+            .receive(on: DispatchQueue.main)) { notif in
+            guard !carried, let level = BotCanvasVoiceNote.level(notif.object) else { return }
+            engine.setVoiceOutLevel(level)
+        }
         .onAppear {
             engine.setState(state.effectiveState, force: true)
         }
@@ -177,6 +189,10 @@ private enum BotCanvasVoiceNote {
     static let listening = Notification.Name("orbex.voice.listening")
     /// `object`: `CGFloat` 0…1, nivel de la voz del usuario.
     static let level = Notification.Name("orbex.voice.level")
+    /// `object`: `Bool` (true = Orbi empezó a hablar, false = terminó).
+    static let speaking = Notification.Name("orbex.voice.speaking")
+    /// `object`: `CGFloat` 0…1, nivel de la voz de Orbi.
+    static let outLevel = Notification.Name("orbex.voice.outLevel")
 
     static func bool(_ object: Any?) -> Bool {
         if let b = object as? Bool { return b }

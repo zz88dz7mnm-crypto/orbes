@@ -105,6 +105,8 @@ enum BotConst {
     static let listenRGB: (r: Double, g: Double, b: Double) = (0.878, 0.251, 0.984)
     /// Costado de la mano que va a la "oreja" al escuchar (+1 = derecha).
     static let earSide: Double = 1
+    /// Hablando (voz de salida): celeste cálido, el color de Orbi (el magenta queda para escuchar).
+    static let speakRGB: (r: Double, g: Double, b: Double) = (0.52, 0.82, 0.97)
 }
 
 // MARK: - Estados
@@ -354,6 +356,29 @@ final class BotEngine: ObservableObject {
     private var lastHearAt: Double = -10
     private var lastAckAt: Double = -10
 
+    // MARK: Habla (voz de salida): se superpone a cualquier estado
+
+    private var speakOn = false
+    /// 0…1: cuánto está hablando (entrada y salida suaves).
+    private(set) var speakK: CGFloat = 0
+    /// Nivel de la voz de Orbi (0…1), suavizado.
+    private(set) var speakLevel: CGFloat = 0
+    private var speakTarget: CGFloat = 0
+    private var speakPrevTarget: CGFloat = 0
+    private var speakLevelAt: Double = 0
+    /// Escala que late con los picos (resorte).
+    private var speakPulse: CGFloat = 0
+    private var speakPulseVel: CGFloat = 0
+    /// Anillos que salen con las sílabas fuertes (como mucho dos vivos).
+    private var speakRings: [(start: Double, strength: Double)] = []
+    private var lastSpeakRingAt: Double = -10
+    private static let speakRingLife: Double = 0.75
+    /// Brazo-gota que gesticula de a ratos (vista grande).
+    private var speakArmStart: Double = -10
+    private var speakArmSide: Double = -1
+    private var speakArmNext: Double = 0
+    private static let speakArmDur: Double = 1.3
+
     // MARK: Ambiente (tema, tinte, reducir movimiento): se relee dos veces por segundo
 
     private(set) var reduceMotion: Bool = false
@@ -450,6 +475,77 @@ final class BotEngine: ObservableObject {
         guard level.isFinite else { return }
         voiceTarget = max(0, min(1, level))
         voiceLevelAt = CACurrentMediaTime()
+    }
+
+    // MARK: - Habla (voz de salida)
+
+    /// Orbi empezó (`true`) o terminó (`false`) de hablar (`orbex.voice.speaking`).
+    /// Se superpone al estado actual; entra y sale suave.
+    func voiceSpeaking(_ on: Bool) {
+        guard on != speakOn else { return }
+        speakOn = on
+        if on {
+            speakArmNext = CACurrentMediaTime() + Double.random(in: 0.6...1.4)
+        } else {
+            speakTarget = 0
+        }
+    }
+
+    /// Nivel de la voz de Orbi, 0…1 (`orbex.voice.outLevel`, ~20 Hz).
+    func setVoiceOutLevel(_ level: CGFloat) {
+        guard level.isFinite else { return }
+        speakTarget = max(0, min(1, level))
+        speakLevelAt = CACurrentMediaTime()
+    }
+
+    /// Cuánto se ve el habla: la escucha tiene prioridad visual.
+    private var speakVis: CGFloat { speakK * (1 - listenK) }
+
+    /// Una vez por cuadro: presencia del habla, nivel, latido, anillos y gesto del brazo.
+    private func updateSpeaking(now: Double, dt: Double) {
+        guard speakOn || speakK > 0.001 || speakLevel > 0.001 || !speakRings.isEmpty
+                || abs(speakPulse) > 0.0005 || abs(speakPulseVel) > 0.005 else {
+            speakK = 0; speakLevel = 0; speakPulse = 0; speakPulseVel = 0
+            return
+        }
+        speakK += ((speakOn ? 1 : 0) - speakK) * CGFloat(1 - exp(-dt * (speakOn ? 6 : 3.5)))
+        if !speakOn { speakTarget = 0 } else if now - speakLevelAt > 0.3 { speakTarget *= CGFloat(exp(-dt * 6)) }
+        let rate: Double = speakTarget > speakLevel ? 24 : 9
+        speakLevel += (speakTarget - speakLevel) * CGFloat(1 - exp(-dt * rate))
+
+        let vis = speakVis
+        let lively = !reduceMotion && !isMini && fullBody
+        // Sílaba fuerte: el nivel sube de golpe → anillo (vista grande, sin "reducir movimiento").
+        let jump = speakTarget - speakPrevTarget
+        speakPrevTarget = speakTarget
+        if lively && vis > 0.3 && speakTarget > 0.45 && jump > 0.12 && now - lastSpeakRingAt > 0.3 {
+            lastSpeakRingAt = now
+            speakRings.append((start: now, strength: Double(min(1, speakTarget))))
+            if speakRings.count > 2 { speakRings.removeFirst(speakRings.count - 2) }
+        }
+        speakRings.removeAll { now - $0.start >= Self.speakRingLife }
+
+        if lively {
+            let w: CGFloat = 2 * .pi * 3.6, z: CGFloat = 0.35, d = CGFloat(dt)
+            speakPulseVel += (w * w * (speakLevel * vis - speakPulse) - 2 * z * w * speakPulseVel) * d
+            speakPulse += speakPulseVel * d
+            // Gesto del brazo de a ratos (alterna de lado; nunca pisa la mano de la oreja).
+            if speakOn && vis > 0.5 && now >= speakArmNext && now - speakArmStart > Self.speakArmDur {
+                speakArmStart = now
+                speakArmSide = speakArmSide > 0 ? -1 : 1
+                speakArmNext = now + Self.speakArmDur + Double.random(in: 1.8...4.2)
+            }
+        } else {
+            speakPulse = 0
+            speakPulseVel = 0
+        }
+    }
+
+    /// Envolvente 0…1 del gesto del brazo al hablar.
+    private func speakArmEnv(_ now: Double) -> Double {
+        let p = (now - speakArmStart) / Self.speakArmDur
+        guard p >= 0 && p < 1 else { return 0 }
+        return sin(.pi * p)
     }
 
     /// Oyó "Orbex": saltito con squash, ojos que se abren grandes y destello magenta.
@@ -1179,6 +1275,8 @@ final class BotEngine: ObservableObject {
         runLife(now)
         // Escucha por voz: nivel, anillos, mano a la oreja y rebote de ojos.
         updateListening(now: now, dt: dt)
+        // Habla: latido del brillo, ojos que gesticulan, anillos y brazo.
+        updateSpeaking(now: now, dt: dt)
 
         // Mirada
         let t = CGFloat(now - t0)
@@ -1295,6 +1393,11 @@ final class BotEngine: ObservableObject {
                 tgSy *= k
                 tgSx *= k
             }
+            // Hablando: leve rebote de escala con los picos de la voz.
+            if abs(speakPulse) > 0.0005 {
+                tgSy *= 1 + 0.04 * speakPulse
+                tgSx *= 1 + 0.025 * speakPulse
+            }
         }
 
         // Mini: comportamientos periódicos
@@ -1372,6 +1475,10 @@ final class BotEngine: ObservableObject {
             let idle = state == .idle
             let rim: (r: Double, g: Double, b: Double) = idle ? (r: 1, g: 1, b: 1) : rgbTuple(cfg.color)
             OrbexPainter.drawMiniBody(&ctx, D: D, tint: frameTint, rim: rim, rimAlpha: idle ? 0.35 : 0.95)
+            if speakVis > 0.01 {
+                OrbexPainter.drawInnerLight(&ctx, D: D, tint: speakTint,
+                                            alpha: Double(speakVis) * (0.1 + 0.4 * Double(speakLevel)))
+            }
         } else {
             OrbexPainter.drawBody(&ctx, D: D, tint: frameTint, material: material)
             if material == .glass {
@@ -1381,6 +1488,11 @@ final class BotEngine: ObservableObject {
             let fa = now - listenFlashAt
             if fa >= 0 && fa < 0.4 {
                 OrbexPainter.drawInnerLight(&ctx, D: D, tint: BotConst.listenRGB, alpha: 0.6 * (1 - fa / 0.4))
+            }
+            // Hablando: la luz interior del vidrio late con la voz (también en compacto).
+            if speakVis > 0.01 {
+                OrbexPainter.drawInnerLight(&ctx, D: D, tint: speakTint,
+                                            alpha: Double(speakVis) * (0.12 + 0.5 * Double(speakLevel)))
             }
             if blush > 0.01 {
                 OrbexPainter.drawWarmth(&ctx, D: D, amount: Double(blush))
@@ -1450,6 +1562,18 @@ final class BotEngine: ObservableObject {
                                          count: full ? 3 : 1, still: reduceMotion, color: BotConst.listenRGB,
                                          alpha: Double(listenK) * Double(max(0, 1 - morph)),
                                          earSide: full ? BotConst.earSide : 0)
+        }
+        // Hablando: halo celeste que respira con la voz y anillos que salen con las sílabas fuertes.
+        let sv = Double(speakVis) * Double(max(0, 1 - morph))
+        if sv > 0.01 {
+            OrbexPainter.drawHalo(&ctx, center: center, radius: R * (1.45 + 0.1 * speakLevel),
+                                  color: speakTint, alpha: sv * (0.08 + 0.22 * Double(speakLevel)))
+            if full && !speakRings.isEmpty {
+                OrbexPainter.drawSpeakRings(ctx, center: center, R: R,
+                                            rings: speakRings.map { (k: (now - $0.start) / Self.speakRingLife,
+                                                                     strength: $0.strength) },
+                                            color: speakTint, alpha: sv)
+            }
         }
         let fa = now - listenFlashAt
         if fa >= 0 && fa < 0.5 {
@@ -1581,8 +1705,15 @@ final class BotEngine: ObservableObject {
         let shrink = 1 - 0.28 * morph
         // Escuchando: los ojos rebotan un poquito con el volumen de tu voz (crecen y suben).
         let bounce = 1 + 0.14 * eyeBounce
-        let w = max(1.4, R * BotConst.eyeW * es * growW * shrink * bounce)
-        let h = max(2.2, R * BotConst.eyeH * es * growH * shrink * bounce)
+        // Hablando: los ojos se achinan con las sílabas y se abren entre ellas (gesticula).
+        var talkH: CGFloat = 1, talkW: CGFloat = 1
+        if speakVis > 0.01 && fullBody && !reduceMotion && !isMini {
+            let v = speakVis
+            talkH = 1 - v * (0.2 * speakLevel - 0.05)
+            talkW = 1 + v * 0.06 * speakLevel
+        }
+        let w = max(1.4, R * BotConst.eyeW * es * growW * shrink * bounce * talkW)
+        let h = max(2.2, R * BotConst.eyeH * es * growH * shrink * bounce * talkH)
         let spread = BotConst.eyeSp * (isMini ? 1.12 : 1)
         let ink = Color(cgColor: isMini ? BotConst.miniInk : BotConst.ink)
         // A través del vidrio se ven apenas los ojos cuando pasan por atrás (vueltas, mareo)
@@ -1632,6 +1763,12 @@ final class BotEngine: ObservableObject {
             } else if sd < 0 && waving {
                 raise += sin(6 * wt) * 0.08 * swing
             }
+            // Hablando: un brazo-gota gesticula de a ratos (sube, se mece y vuelve).
+            let env = speakArmEnv(now) * Double(speakVis)
+            if env > 0.001 && sd == speakArmSide && !reduceMotion {
+                let beat = sin((now - speakArmStart) * 9) * (0.12 + 0.18 * Double(speakLevel))
+                raise += (1.05 + beat - raise) * env
+            }
             var length: CGFloat = 1
             if listenK > 0.001 && sd == BotConst.earSide {
                 // Escuchando: lleva la mano-gota a la "oreja" (costado de la cabeza), un poco más corta
@@ -1653,6 +1790,9 @@ final class BotEngine: ObservableObject {
                                  length: length)
         }
     }
+
+    /// Color del habla: celeste cálido con un toque del tinte del vidrio.
+    private var speakTint: (r: Double, g: Double, b: Double) { mixRGB(BotConst.speakRGB, frameTint, 0.2) }
 
     /// Ángulo de reposo de cada brazo según el estado (0 = colgando; positivo = hacia afuera).
     private func restRaise(side: Double, t: Double) -> Double {

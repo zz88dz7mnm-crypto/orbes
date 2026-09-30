@@ -820,6 +820,25 @@ extension OrbexPainter {
         }
     }
 
+    /// Hablando: anillos suaves que salen de la esfera con las sílabas fuertes. `k` 0…1 = vida del
+    /// anillo; `strength` = nivel de la sílaba. En coordenadas del lienzo. Un trazo por anillo.
+    static func drawSpeakRings(_ ctx: GraphicsContext, center: CGPoint, R: CGFloat,
+                               rings: [(k: Double, strength: Double)], color: RGB, alpha: Double) {
+        guard alpha > 0.01, R > 0.5 else { return }
+        let col = mix(color, white, 0.25)
+        for ring in rings {
+            let k = max(0, min(1, ring.k))
+            let s = max(0, min(1, ring.strength))
+            let ease = 1 - (1 - k) * (1 - k)
+            let rr = R * CGFloat(1.04 + ease * (0.28 + 0.22 * s))
+            let a = alpha * (1 - k) * min(1, k * 8) * (0.25 + 0.45 * s)
+            guard a > 0.01 else { continue }
+            let lw = max(0.7, R * CGFloat(0.035 + 0.03 * s) * CGFloat(1 - 0.5 * k))
+            ctx.stroke(Path(ellipseIn: CGRect(x: center.x - rr, y: center.y - rr, width: 2 * rr, height: 2 * rr)),
+                       with: .color(rgb(col, min(1, a))), lineWidth: lw)
+        }
+    }
+
     /// Mareado: estrellitas doradas que giran sobre la cabeza. En coordenadas del lienzo.
     static func drawDizzyStars(_ ctx: GraphicsContext, center: CGPoint, R: CGFloat, t: Double) {
         for i in 0..<3 {
