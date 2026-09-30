@@ -1,6 +1,6 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🟢 ETAPA 4 · Orbi habla + modo inteligente: 0 %</h1>
+<h1 align="center">🟢 ETAPA 4 · Orbi habla + modo inteligente: 20 %</h1>
 
 # Etapa 4 — Orbi responde con voz natural y "modo inteligente"
 
@@ -12,7 +12,7 @@ memoria), con diseño de Orbi. fullstack-agent es AGPL: se toma solo la idea, si
 - [ ] W1 · Voz de salida: Kokoro local (voz en español, `ef_dora`) + Cartesia opcional (clave en Keychain) + voz de macOS de respaldo
 - [ ] W2 · Conversación: Orbi contesta hablando (charla corta, confirma acciones), comando "activar/desactivar modo inteligente"
 - [ ] W3 · Panel "modo inteligente": cara grande de Orbi, conversación en vivo, memoria, acciones, micrófono
-- [ ] W4 · Orbi hablando: animación sincronizada con la voz (brillo y ondas al ritmo)
+- [x] W4 · Orbi hablando: animación sincronizada con la voz (brillo y ondas al ritmo)
 - [ ] W5 · Verificación y docs
 
 ---
