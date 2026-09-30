@@ -100,6 +100,11 @@ enum BotConst {
     static let miniInk    = CGColor(red: 0.02, green: 0.025, blue: 0.04, alpha: 1)
     /// Radio mínimo (pt) para dibujar piernitas y pies.
     static let limbsMinR: CGFloat = 14
+    /// Escuchando un pedido por voz: magenta #E040FB (ningún otro estado lo usa).
+    static let listen = CGColor(red: 0.878, green: 0.251, blue: 0.984, alpha: 1)
+    static let listenRGB: (r: Double, g: Double, b: Double) = (0.878, 0.251, 0.984)
+    /// Costado de la mano que va a la "oreja" al escuchar (+1 = derecha).
+    static let earSide: Double = 1
 }
 
 // MARK: - Estados
@@ -181,6 +186,15 @@ let BotStates: [BotState: BotStateCfg] = [
         glow: CGColor(red:0.957,green:0.447,blue:0.714,alpha:1), glowOpacity:0.55,
         bounces:false, scans:false, breathes:false, zz:false, sweat:false,
         look:nil, tilt:0, sound:"dizzy"),
+    // Escuchando "Orbex, …": magenta propio, ojos bien abiertos mirando al frente, sin insignia (las
+    // ondas son el ícono), respira suave. Sin sonido: el de activación lo toca la voz.
+    .listening: BotStateCfg(
+        color: BotConst.listen, tint:0.78,
+        eye:.wide, badge:nil,
+        badgeColor: BotConst.listen,
+        glow: BotConst.listen, glowOpacity:0.62,
+        bounces:false, scans:false, breathes:true, zz:false, sweat:false,
+        look: CGPoint(x:0, y:-0.12), tilt:0, sound:nil),
 ]
 
 // MARK: - Motor
@@ -322,6 +336,24 @@ final class BotEngine: ObservableObject {
     private static let bubblePlayDur: Double = 2.6
     private var lifeTuned = false
 
+    // MARK: Escucha por voz ("Orbex, …")
+
+    /// 0…1: cuánto está escuchando (suave). Lleva la mano a la oreja, los anillos y el acercamiento.
+    private(set) var listenK: CGFloat = 0
+    /// Nivel de la voz del usuario (0…1), suavizado: sube rápido y baja despacio.
+    private(set) var voiceLevel: CGFloat = 0
+    private var voiceTarget: CGFloat = 0
+    private var voiceLevelAt: Double = 0
+    /// Fase de los anillos (avanza más rápido cuanto más fuerte habla).
+    private var ringPhase: Double = 0
+    /// Rebote de los ojos con el volumen (resorte poco amortiguado).
+    private var eyeBounce: CGFloat = 0
+    private var eyeBounceVel: CGFloat = 0
+    /// Destello al oír su nombre; enfriamiento de la entrada y del "entendido".
+    private var listenFlashAt: Double = -10
+    private var lastHearAt: Double = -10
+    private var lastAckAt: Double = -10
+
     // MARK: Ambiente (tema, tinte, reducir movimiento): se relee dos veces por segundo
 
     private(set) var reduceMotion: Bool = false
@@ -351,6 +383,9 @@ final class BotEngine: ObservableObject {
         // Se despierta: sobresalto y estirada (antes de la reacción del estado nuevo).
         let wakes = prev == .sleeping && newState != .sleeping && !force && !isMini
         if wakes { wakeUp() }
+        // Terminó de escuchar: asiente ("entendido") y sigue con el estado nuevo.
+        let heard = prev == .listening && newState != .listening && !force && !isMini
+        if heard { acknowledgeListening() }
         switch newState {
         case .finished:
             // Voltereta con saltito y confeti de vidrio.
@@ -387,8 +422,119 @@ final class BotEngine: ObservableObject {
             blink()
         case .ratelimit:
             emit(.sweat, count: 1)
+        case .listening:
+            // Oyó su nombre: saltito + destello (si se estaba despertando, solo el destello).
+            if !isMini { hearName(hop: !wakes) }
         default:
-            if !wakes && (prev != .idle || newState != .idle) { blink() }
+            if !wakes && !heard && (prev != .idle || newState != .idle) { blink() }
+        }
+    }
+
+    // MARK: - Escucha por voz
+
+    /// La voz empezó (`true`) o terminó (`false`) de escuchar un pedido (`orbex.voice.listening`).
+    /// El color y el gesto los da el estado `.listening`; esto adelanta la entrada o el "entendido"
+    /// si la notificación llega antes que el cambio de estado (cada uno corre una sola vez).
+    func voiceListening(_ on: Bool) {
+        guard !isMini else { return }
+        if on {
+            hearName(hop: true)
+        } else {
+            voiceTarget = 0
+            if state == .listening || listenK > 0.3 { acknowledgeListening() }
+        }
+    }
+
+    /// Nivel de la voz del usuario, 0…1 (`orbex.voice.level`, ~20 Hz).
+    func setVoiceLevel(_ level: CGFloat) {
+        guard level.isFinite else { return }
+        voiceTarget = max(0, min(1, level))
+        voiceLevelAt = CACurrentMediaTime()
+    }
+
+    /// Oyó "Orbex": saltito con squash, ojos que se abren grandes y destello magenta.
+    private func hearName(hop: Bool) {
+        let now = CACurrentMediaTime()
+        guard now - lastHearAt > 1.0 else { return }
+        lastHearAt = now
+        interruptGreet()
+        listenFlashAt = now
+        guard !reduceMotion else { return }   // sin rebotes: alcanza con el destello
+        let lite = !fullBody
+        anim("es", keys: [
+            TweenKey(target: 1.22, duration: 110, ease: Ease.out),
+            TweenKey(target: 1,    duration: 420, ease: Ease.inOut),
+        ])
+        guard hop else { return }
+        let m: CGFloat = lite ? 0.6 : 1
+        anim("oy", keys: [
+            TweenKey(target: -0.24 * m, duration: 130, ease: Ease.out),
+            TweenKey(target: 0,         duration: 330, ease: Ease.back),
+        ])
+        anim("sy", keys: [
+            TweenKey(target: 1.1,  duration: 110, ease: Ease.out),
+            TweenKey(target: 0.9,  duration: 150, ease: Ease.inOut),
+            TweenKey(target: 1,    duration: 220, ease: Ease.back),
+        ])
+        anim("sx", keys: [
+            TweenKey(target: 0.94, duration: 110, ease: Ease.out),
+            TweenKey(target: 1.08, duration: 150, ease: Ease.inOut),
+            TweenKey(target: 1,    duration: 220, ease: Ease.back),
+        ])
+        if !lite { emit(.spark, count: 3) }
+    }
+
+    /// "Entendido": asiente dos veces (squash vertical doble + cabeceo) con ojos felices un instante.
+    private func acknowledgeListening() {
+        let now = CACurrentMediaTime()
+        guard now - lastAckAt > 1.0 else { return }
+        lastAckAt = now
+        voiceTarget = 0
+        eyeOverride = .happy
+        eyeOverrideUntil = now + 0.75
+        guard !reduceMotion else { return }   // sin rebotes: solo los ojos felices
+        anim("sy", keys: [
+            TweenKey(target: 0.87, duration: 90,  ease: Ease.out),
+            TweenKey(target: 1.03, duration: 120, ease: Ease.inOut),
+            TweenKey(target: 0.9,  duration: 100, ease: Ease.out),
+            TweenKey(target: 1,    duration: 220, ease: Ease.back),
+        ])
+        anim("sx", keys: [
+            TweenKey(target: 1.08, duration: 90,  ease: Ease.out),
+            TweenKey(target: 0.98, duration: 120, ease: Ease.inOut),
+            TweenKey(target: 1.06, duration: 100, ease: Ease.out),
+            TweenKey(target: 1,    duration: 220, ease: Ease.back),
+        ])
+        anim("pitch", keys: [
+            TweenKey(target: -0.24, duration: 90,  ease: Ease.out),
+            TweenKey(target: 0.02,  duration: 120, ease: Ease.inOut),
+            TweenKey(target: -0.18, duration: 100, ease: Ease.out),
+            TweenKey(target: 0,     duration: 220, ease: Ease.inOut),
+        ])
+    }
+
+    /// Una vez por cuadro: presencia de la escucha, nivel de la voz, fase de los anillos y rebote de ojos.
+    private func updateListening(now: Double, dt: Double) {
+        let on = state == .listening
+        guard on || listenK > 0.001 || voiceLevel > 0.001 || voiceTarget > 0.001
+                || abs(eyeBounce) > 0.0005 || abs(eyeBounceVel) > 0.005 else {
+            listenK = 0; voiceLevel = 0; eyeBounce = 0; eyeBounceVel = 0
+            return
+        }
+        listenK += ((on ? 1 : 0) - listenK) * CGFloat(1 - exp(-dt * 7))
+        // Sin datos nuevos (o fuera de la escucha) el nivel se apaga solo.
+        if !on { voiceTarget = 0 } else if now - voiceLevelAt > 0.3 { voiceTarget *= CGFloat(exp(-dt * 5)) }
+        let rate: Double = voiceTarget > voiceLevel ? 22 : 7
+        voiceLevel += (voiceTarget - voiceLevel) * CGFloat(1 - exp(-dt * rate))
+        ringPhase += dt * (0.5 + 0.7 * Double(voiceLevel))
+        if ringPhase > 1000 { ringPhase -= 1000 }
+        if reduceMotion || isMini || !fullBody {
+            eyeBounce = 0
+            eyeBounceVel = 0
+        } else {
+            let w: CGFloat = 2 * .pi * 3.2, z: CGFloat = 0.3, d = CGFloat(dt)
+            eyeBounceVel += (w * w * (voiceLevel * listenK - eyeBounce) - 2 * z * w * eyeBounceVel) * d
+            eyeBounce += eyeBounceVel * d
         }
     }
 
@@ -1031,6 +1177,8 @@ final class BotEngine: ObservableObject {
 
         // Vida: parpadeos y microgestos (LifeScheduler de OrbexCore)
         runLife(now)
+        // Escucha por voz: nivel, anillos, mano a la oreja y rebote de ojos.
+        updateListening(now: now, dt: dt)
 
         // Mirada
         let t = CGFloat(now - t0)
@@ -1114,7 +1262,10 @@ final class BotEngine: ObservableObject {
 
         // Respiración (siempre; más honda dormido; casi nada con "reducir movimiento") y flotación
         if cfg.breathes {
-            let amp: CGFloat = isMini ? 0.07 : (reduceMotion ? 0.012 : 0.035)
+            // Escuchando respira suave (atento); dormido, hondo.
+            let soft = state == .listening
+            let amp: CGFloat = isMini ? (soft ? 0.035 : 0.07)
+                : (reduceMotion ? (soft ? 0.006 : 0.012) : (soft ? 0.022 : 0.035))
             tgSy = 1 + sin(t * 1.8) * amp
             tgSx = 1 - sin(t * 1.8) * amp * 0.57
         } else if isMini {
@@ -1137,6 +1288,12 @@ final class BotEngine: ObservableObject {
             if carried {
                 tgSy *= 1.05
                 tgSx *= 0.97
+            }
+            // Escuchando (vista abierta): se acerca un poquito, como inclinándose hacia vos.
+            if listenK > 0.001 && fullBody {
+                let k = 1 + 0.045 * listenK * motion
+                tgSy *= k
+                tgSx *= k
             }
         }
 
@@ -1200,6 +1357,17 @@ final class BotEngine: ObservableObject {
         var ctx = bodyContext(context, g: g)
 
         if isMini {
+            // Mini escuchando: solo el halo que late y un anillo (detrás de la cuenta).
+            if listenK > 0.01 {
+                var aura = context
+                let center = CGPoint(x: g.cx, y: g.cy)
+                let beat = sin(now * (reduceMotion ? 1.8 : 3.6))
+                OrbexPainter.drawHalo(&aura, center: center, radius: R * 1.6, color: BotConst.listenRGB,
+                                      alpha: Double(listenK) * (0.26 + 0.1 * beat))
+                OrbexPainter.drawListenRings(aura, center: center, R: R, phase: ringPhase,
+                                             level: Double(voiceLevel), count: 1, still: reduceMotion,
+                                             color: BotConst.listenRGB, alpha: Double(listenK), earSide: 0)
+            }
             // Mini: cuenta de vidrio del color de marca, con el borde del color del estado
             let idle = state == .idle
             let rim: (r: Double, g: Double, b: Double) = idle ? (r: 1, g: 1, b: 1) : rgbTuple(cfg.color)
@@ -1208,6 +1376,11 @@ final class BotEngine: ObservableObject {
             OrbexPainter.drawBody(&ctx, D: D, tint: frameTint, material: material)
             if material == .glass {
                 OrbexPainter.drawInnerLight(&ctx, D: D, tint: frameTint, alpha: 0.26)
+            }
+            // Destello al oír su nombre: el vidrio se enciende de magenta claro un instante.
+            let fa = now - listenFlashAt
+            if fa >= 0 && fa < 0.4 {
+                OrbexPainter.drawInnerLight(&ctx, D: D, tint: BotConst.listenRGB, alpha: 0.6 * (1 - fa / 0.4))
             }
             if blush > 0.01 {
                 OrbexPainter.drawWarmth(&ctx, D: D, amount: Double(blush))
@@ -1256,11 +1429,36 @@ final class BotEngine: ObservableObject {
         var glowRGB = rgbTuple(cfg.glow)
         if morph > 0.01 { glowRGB = mixRGB(glowRGB, frameTint, Double(min(1, morph))) }
         var a = Double(cfg.glowOpacity) * 0.5
+        var haloR = R * 1.55
         if (state == .approval || state == .question) && !reduceMotion { a *= 0.75 + 0.25 * sin(now * 4) }
+        if state == .listening {
+            // Escuchando: el halo magenta late (más lento con "reducir movimiento") y se enciende con tu voz.
+            a *= 0.72 + 0.28 * sin(now * (reduceMotion ? 1.8 : 3.6))
+            a += 0.2 * Double(voiceLevel)
+            if !reduceMotion { haloR *= 1 + 0.08 * voiceLevel }
+        }
         if portalHover > 0.01 { a = max(a, 0.4) }
+        let center = CGPoint(x: g.cx, y: g.cy)
         if a > 0.01 {
-            OrbexPainter.drawHalo(&ctx, center: CGPoint(x: g.cx, y: g.cy), radius: R * 1.55,
-                                  color: glowRGB, alpha: a)
+            OrbexPainter.drawHalo(&ctx, center: center, radius: haloR, color: glowRGB, alpha: a)
+        }
+
+        // Escuchando: anillos magenta según tu voz (compacto: uno solo) y destello al oír su nombre.
+        let full = g.arms > 0.5 && R >= BotConst.limbsMinR
+        if listenK > 0.01 {
+            OrbexPainter.drawListenRings(ctx, center: center, R: R, phase: ringPhase, level: Double(voiceLevel),
+                                         count: full ? 3 : 1, still: reduceMotion, color: BotConst.listenRGB,
+                                         alpha: Double(listenK) * Double(max(0, 1 - morph)),
+                                         earSide: full ? BotConst.earSide : 0)
+        }
+        let fa = now - listenFlashAt
+        if fa >= 0 && fa < 0.5 {
+            let k = fa / 0.5
+            OrbexPainter.drawHalo(&ctx, center: center, radius: R * CGFloat(1.4 + 0.4 * k),
+                                  color: mixRGB(BotConst.listenRGB, (r: 1, g: 1, b: 1), 0.3), alpha: 0.5 * (1 - k))
+            var ring = ctx
+            ring.translateBy(x: g.cx, y: g.cy)
+            OrbexPainter.drawRipple(&ring, from: R * 1.0, to: R * 1.6, k: k, tint: BotConst.listenRGB, D: D)
         }
 
         // Piernitas y pies: solo de cuerpo entero (vista abierta y esfera grande)
@@ -1381,8 +1579,10 @@ final class BotEngine: ObservableObject {
         let growW: CGFloat = 1 + small * (isMini ? 0.8 : 0.6)
         let growH: CGFloat = 1 + small * 0.35
         let shrink = 1 - 0.28 * morph
-        let w = max(1.4, R * BotConst.eyeW * es * growW * shrink)
-        let h = max(2.2, R * BotConst.eyeH * es * growH * shrink)
+        // Escuchando: los ojos rebotan un poquito con el volumen de tu voz (crecen y suben).
+        let bounce = 1 + 0.14 * eyeBounce
+        let w = max(1.4, R * BotConst.eyeW * es * growW * shrink * bounce)
+        let h = max(2.2, R * BotConst.eyeH * es * growH * shrink * bounce)
         let spread = BotConst.eyeSp * (isMini ? 1.12 : 1)
         let ink = Color(cgColor: isMini ? BotConst.miniInk : BotConst.ink)
         // A través del vidrio se ven apenas los ojos cuando pasan por atrás (vueltas, mareo)
@@ -1391,7 +1591,7 @@ final class BotEngine: ObservableObject {
         for sd in [-1.0, 1.0] {
             let side = CGFloat(sd)
             let eyeYaw = side * spread + yaw
-            var eyePitch = BotConst.eyeP + pitch + roll + morph * 0.7
+            var eyePitch = BotConst.eyeP + pitch + roll + morph * 0.7 + eyeBounce * 0.06
             eyePitch = ((eyePitch + .pi).truncatingRemainder(dividingBy: .pi * 2) + .pi * 2)
                 .truncatingRemainder(dividingBy: .pi * 2) - .pi
             let cYaw = cos(eyeYaw)
@@ -1432,6 +1632,15 @@ final class BotEngine: ObservableObject {
             } else if sd < 0 && waving {
                 raise += sin(6 * wt) * 0.08 * swing
             }
+            var length: CGFloat = 1
+            if listenK > 0.001 && sd == BotConst.earSide {
+                // Escuchando: lleva la mano-gota a la "oreja" (costado de la cabeza), un poco más corta
+                // para que el bulbo apoye en el vidrio; con tu voz da toquecitos.
+                let ear = Double(listenK)
+                let tap = reduceMotion ? 0 : sin(t * 11) * 0.05 * Double(voiceLevel)
+                raise += (2.97 + tap - raise) * ear
+                length = 1 - 0.12 * listenK
+            }
             var arm = ctx
             if vis < 0.99 {
                 // Aparece creciendo desde el hombro
@@ -1440,7 +1649,8 @@ final class BotEngine: ObservableObject {
                 arm.scaleBy(x: vis, y: vis)
                 arm.translateBy(x: -px, y: 0)
             }
-            OrbexPainter.drawArm(&arm, side: sd, raise: raise, D: D, tint: frameTint, material: material)
+            OrbexPainter.drawArm(&arm, side: sd, raise: raise, D: D, tint: frameTint, material: material,
+                                 length: length)
         }
     }
 
@@ -1467,6 +1677,9 @@ final class BotEngine: ObservableObject {
             return 0.05
         case .dizzy:
             return 0.5 + (calm ? 0 : sin(t * 9 + side) * 0.35)
+        case .listening:
+            // La mano de la oreja la pone `drawArms`; la otra, un poco afuera, atenta.
+            return 0.26 + (calm ? 0 : sin(t * 1.6 + phase) * 0.04)
         default:
             return 0.08 + (calm ? 0 : sin(t * 1.3 + phase) * 0.04)
         }
@@ -1732,6 +1945,11 @@ final class BotEngine: ObservableObject {
 
         // Pregunta: cabeza ladeada que se hamaca despacio.
         if state == .question { tgTilt += sin(t * 1.3) * 0.05 * motion }
+
+        // Escuchando (vista abierta): ladea la cabeza hacia la mano de la oreja.
+        if listenK > 0.001 && fullBody {
+            tgTilt += CGFloat(BotConst.earSide) * 0.09 * listenK * motion
+        }
 
         // Se inclina hacia el cursor (más de cuerpo entero).
         if !carried && state != .sleeping && state != .dizzy && morph < 0.3 {

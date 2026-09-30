@@ -227,12 +227,14 @@ enum OrbexPainter {
     }
 
     /// Brazo en forma de gota: punta arriba (hombro), bulbo abajo. `raise` lo levanta hacia afuera.
+    /// `length` acorta o alarga el brazo (1 = normal; la mano en la oreja usa ~0,88).
     static func drawArm(_ ctx: inout GraphicsContext, side: Double, raise: Double, D: CGFloat,
-                        tint: (r: Double, g: Double, b: Double), material: OrbexMaterial = .glass) {
+                        tint: (r: Double, g: Double, b: Double), material: OrbexMaterial = .glass,
+                        length: CGFloat = 1) {
         var arm = ctx
         arm.translateBy(x: CGFloat(side) * 0.45 * D, y: 0.0)
         arm.rotate(by: .radians(-side * raise))
-        let L = 0.38 * D, w = 0.12 * D
+        let L = 0.38 * D * max(0.5, length), w = 0.12 * D
         var p = Path()
         p.move(to: CGPoint(x: 0, y: -0.02 * D))
         p.addCurve(to: CGPoint(x: 0, y: L), control1: CGPoint(x: w * 1.1, y: L * 0.35), control2: CGPoint(x: w * 1.25, y: L))
@@ -771,6 +773,50 @@ extension OrbexPainter {
             var c = ctx
             c.opacity = depth > 0 ? 0.95 : 0.35
             c.fill(Path(ellipseIn: CGRect(x: x - d / 2, y: y - d / 2, width: d, height: d)), with: .color(rgb(col, 1)))
+        }
+    }
+
+    /// Escuchando: anillos que salen de la esfera y crecen con el nivel de la voz (`level` 0…1).
+    /// En coordenadas del lienzo; `phase` avanza con el tiempo. `count` = 1 (compacto y mini): un solo
+    /// anillo que respira con la voz. `still` ("reducir movimiento"): radios fijos, solo cambia la opacidad.
+    /// `earSide` ≠ 0: más brillantes del lado de la oreja que escucha. Un trazo por anillo.
+    static func drawListenRings(_ ctx: GraphicsContext, center: CGPoint, R: CGFloat, phase: Double, level: Double,
+                                count: Int, still: Bool, color: RGB, alpha: Double, earSide: Double) {
+        guard count > 0, alpha > 0.01, R > 0.5 else { return }
+        let col = mix(color, white, 0.2)
+        let lv = max(0, min(1, level))
+        for i in 0..<count {
+            let fi = Double(i)
+            let rr: CGFloat
+            var a: Double
+            let lw: CGFloat
+            if still {
+                rr = R * CGFloat(1.2 + 0.2 * fi)
+                a = (0.2 + 0.6 * lv) * (1 - 0.3 * fi / Double(count))
+                lw = max(0.7, R * 0.05)
+            } else if count == 1 {
+                rr = R * CGFloat(1.14 + 0.28 * lv + 0.04 * sin(phase * 2 * .pi))
+                a = 0.32 + 0.55 * lv
+                lw = max(0.7, R * CGFloat(0.045 + 0.04 * lv))
+            } else {
+                // Sale de la esfera y se desvanece; con la voz, llega más lejos y brilla más.
+                let p = (phase + fi / Double(count)).truncatingRemainder(dividingBy: 1)
+                rr = R * CGFloat(1.05 + p * (0.3 + 0.32 * lv))
+                a = (1 - p) * min(1, p * 6) * (0.24 + 0.7 * lv)
+                lw = max(0.7, R * CGFloat(0.04 + 0.05 * lv) * CGFloat(1 - 0.5 * p))
+            }
+            a *= alpha
+            guard a > 0.01 else { continue }
+            let ring = Path(ellipseIn: CGRect(x: center.x - rr, y: center.y - rr, width: 2 * rr, height: 2 * rr))
+            if earSide != 0 {
+                let x = CGFloat(earSide) * rr
+                ctx.stroke(ring, with: .linearGradient(
+                    Gradient(colors: [rgb(col, min(1, a)), rgb(col, min(1, a) * 0.4)]),
+                    startPoint: CGPoint(x: center.x + x, y: center.y), endPoint: CGPoint(x: center.x - x, y: center.y)),
+                           lineWidth: lw)
+            } else {
+                ctx.stroke(ring, with: .color(rgb(col, min(1, a))), lineWidth: lw)
+            }
         }
     }
 

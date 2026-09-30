@@ -2,6 +2,7 @@
 // Modificado para ORBEX (solo el código; ningún asset de Coucou). Ver THIRD_PARTY_NOTICES.md.
 
 import SwiftUI
+import Combine
 import QuartzCore
 
 /// ORBEX de la isla: un `TimelineView` le da cuadros a un `Canvas` que dibuja `BotEngine`.
@@ -113,6 +114,19 @@ struct BotCanvasView: View {
             engine.audible = canSpeak
             engine.greet()
         }
+        // Voz ("Orbex, …"): empieza/termina de escuchar (entrada con saltito, "entendido" al final)
+        // y nivel de tu voz (~20 Hz) para los anillos y el rebote de los ojos. La voz puede postear
+        // desde otro hilo: se reciben en el principal.
+        .onReceive(NotificationCenter.default.publisher(for: BotCanvasVoiceNote.listening)
+            .receive(on: DispatchQueue.main)) { notif in
+            guard !carried else { return }
+            engine.voiceListening(BotCanvasVoiceNote.bool(notif.object))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: BotCanvasVoiceNote.level)
+            .receive(on: DispatchQueue.main)) { notif in
+            guard !carried, let level = BotCanvasVoiceNote.level(notif.object) else { return }
+            engine.setVoiceLevel(level)
+        }
         .onAppear {
             engine.setState(state.effectiveState, force: true)
         }
@@ -154,6 +168,28 @@ struct BotCanvasView: View {
                                              uploadProgress: state.uploadProgress)
         // Arriba de la isla = arriba de la pantalla → Y del bot en pantalla = botCy
         return -tanh((state.mousePosition.y - botCy) / 200)
+    }
+}
+
+/// Notificaciones de la voz que escucha el lienzo (las postea el asistente por voz).
+private enum BotCanvasVoiceNote {
+    /// `object`: `Bool` (true = empezó a escuchar un pedido, false = terminó).
+    static let listening = Notification.Name("orbex.voice.listening")
+    /// `object`: `CGFloat` 0…1, nivel de la voz del usuario.
+    static let level = Notification.Name("orbex.voice.level")
+
+    static func bool(_ object: Any?) -> Bool {
+        if let b = object as? Bool { return b }
+        if let n = object as? NSNumber { return n.boolValue }
+        return false
+    }
+
+    static func level(_ object: Any?) -> CGFloat? {
+        if let v = object as? CGFloat { return v }
+        if let v = object as? Double { return CGFloat(v) }
+        if let v = object as? Float { return CGFloat(v) }
+        if let n = object as? NSNumber { return CGFloat(n.doubleValue) }
+        return nil
     }
 }
 
