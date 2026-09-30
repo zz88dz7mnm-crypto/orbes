@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SchedulerStore.shared.start()  // recordatorios y acciones a hora puntual
         _ = MemoryStore.shared         // memoria local (contexto del asistente)
         MusicStore.shared.start()      // Spotify / Música
+        VoiceController.shared.start() // "Orbex, …": atajo ⌃⌥Espacio y, si está activado, siempre atento
         startServices()                // Stripe, Notion, Cal.com (opcionales: solo con clave guardada)
         if UserDefaults.standard.bool(forKey: "orbex.music.beatDetection") {
             Task { @MainActor in _ = await BeatDetector.shared.start() }
@@ -68,6 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         StripePoller.shared.start()
         CalcomPoller.shared.start()
         NotionPoller.shared.start()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        VoiceController.shared.stop()   // suelta el micrófono
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

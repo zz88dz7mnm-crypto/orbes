@@ -57,9 +57,9 @@
 	<key>NSDesktopFolderUsageDescription</key>
 	<string>ORBEX necesita acceso al Escritorio para crear (o borrar) el acceso directo a la app.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>ORBEX usa el micrófono para la captura por voz: le hablás y transcribe lo que decís. Solo escucha mientras mantenés activa la captura.</string>
+	<string>ORBEX usa el micrófono para que le hables («Orbex, abrí Spotify») y haga lo que le pedís. Solo escucha si activás la voz en Configuración › Voz o apretás ⌃⌥Espacio. El audio se procesa en tu Mac y no se graba.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>ORBEX usa el reconocimiento de voz de macOS para convertir en texto lo que le dictás.</string>
+	<string>ORBEX usa el reconocimiento de voz de macOS, en tu Mac, para entender lo que le pedís en voz alta. No guarda ni envía lo que decís.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>ORBEX escucha el audio del sistema (sin grabarlo ni enviarlo a ningún lado) para bailar al ritmo de la música que estás reproduciendo.</string>
 	<key>NSCalendarsUsageDescription</key>

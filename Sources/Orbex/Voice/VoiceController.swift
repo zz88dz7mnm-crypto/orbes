@@ -160,6 +160,14 @@ final class VoiceController: ObservableObject {
         let enabled = VoiceSettings.enabled
         if enabled && VoiceSettings.pushToTalk { registerHotKey() } else { unregisterHotKey() }
 
+        // Primer uso: el usuario acaba de activar la voz en Configuración (donde está la explicación).
+        if userInitiated && enabled && (micPermission == .notAsked || speechPermission == .notAsked) {
+            Task { @MainActor in
+                _ = await VoiceController.shared.requestPermissions()
+                VoiceController.shared.apply(userInitiated: false)
+            }
+        }
+
         let model = AppModel.shared
         pausedForPower = VoiceSettings.pauseOnLowPower && (model.lowPower || model.settings.lowPowerMode)
         pausedForSystem = isScreenLocked || isAsleep
@@ -175,14 +183,8 @@ final class VoiceController: ObservableObject {
                 } else if phase == .waitingWakeWord, activeConfig != currentConfig() {
                     _ = ensureListener()   // cambió el idioma o los nombres: se rearma
                 }
-            } else if userInitiated {
-                Task { @MainActor in
-                    if await VoiceController.shared.requestPermissions() {
-                        VoiceController.shared.apply(userInitiated: false)
-                    }
-                }
-            } else {
-                problem = "Falta permiso de micrófono o de reconocimiento de voz: activalo desde Configuración › Voz."
+            } else if !requestingPermissions {
+                problem = "Falta permiso de micrófono o de reconocimiento de voz: mirá Estado, más abajo."
             }
         } else if phase == .waitingWakeWord {
             phase = .off
@@ -392,7 +394,7 @@ final class VoiceController: ObservableObject {
         noteVisible = false
         listener.holdRotation = true
 
-        var ep = UtteranceEndpointer(silenceAfterSpeech: 1.3, maxListen: 12, noSpeechTimeout: 6)
+        var ep = UtteranceEndpointer(silenceAfterSpeech: 1.3, maxListen: 12, noSpeechTimeout: 5)
         ep.start(at: Self.clock)
         endpointer = ep
 
@@ -483,21 +485,48 @@ final class VoiceController: ObservableObject {
 
     // MARK: - Hacer lo pedido
 
-    private func runLocal(_ command: OrbexCommand, said: String, cleaned: String) async {
+    /// Hace los comandos de ORBEX. `.local` trae el primero; si se pidieron varios ("abrí Figma y Slack"),
+    /// se hacen todos en orden.
+    private func runLocal(_ first: OrbexCommand, said: String, cleaned: String) async {
         lastUnderstood = said
         let executor = CommandExecutor.shared
-        // Lo que pide confirmación nunca se hace por voz: va al chat, donde el usuario confirma con un clic.
-        if AutonomyPolicy.level(for: command, allowlist: executor.allowlist) == .confirm {
-            handOffToChat([cleaned, said], expected: command)
-            return
+        let all = CommandParser.parseAll(cleaned)
+        let commands = all.first == first ? all : [first]
+
+        var messages: [String] = []
+        var needsOK: OrbexCommand?
+        for command in commands {
+            // Lo que pide confirmación nunca se hace por voz: va al chat, donde el usuario confirma con un clic.
+            if AutonomyPolicy.level(for: command, allowlist: executor.allowlist) == .confirm {
+                if needsOK == nil { needsOK = command }
+                continue
+            }
+            let result = await executor.execute(command)
+            if result.needsConfirmation {
+                executor.cancelPending()
+                if needsOK == nil { needsOK = command }
+                continue
+            }
+            messages.append(result.message)
         }
-        let result = await executor.execute(command)
-        if result.needsConfirmation {
-            executor.cancelPending()
-            handOffToChat([cleaned, said], expected: command)
-            return
+
+        if let pending = needsOK {
+            // Textos que el chat entendería como ese mismo comando (el pedido entero solo si era uno).
+            let texts = (commands.count == 1 ? [cleaned, said] : []) + Self.phrases(for: pending)
+            handOffToChat(texts, expected: pending)
+        } else if !messages.isEmpty {
+            OrbexBridge.shared.showNote("Entendí: “\(Self.clip(said))”\n" + messages.joined(separator: "\n"),
+                                        symbol: "waveform")
         }
-        OrbexBridge.shared.showNote("Entendí: “\(Self.clip(said))”\n\(result.message)", symbol: "waveform")
+    }
+
+    /// Frases que `CommandParser` convierte en ese comando (para pasarlo al chat a confirmar).
+    private static func phrases(for command: OrbexCommand) -> [String] {
+        switch command {
+        case .openApp(let name): return ["abrí \(name)", "abrir \(name)"]
+        case .openFolder(let path): return ["abrí la carpeta \(path)", "abrir la carpeta \(path)", "abrí \(path)"]
+        default: return []
+        }
     }
 
     /// Abre el chat de la isla con el pedido: si el chat lo entiende igual, muestra la pregunta con el botón
@@ -672,10 +701,9 @@ final class VoiceController: ObservableObject {
     }
 
     private func mouse(_ type: NSEvent.EventType, windowNumber: Int) {
-        guard VoiceSettings.enabled, VoiceSettings.longPress else { return }
         switch type {
         case .leftMouseDown:
-            guard let window = OrbexBridge.shared.island?.window, window.windowNumber == windowNumber else { return }
+            guard VoiceSettings.enabled, VoiceSettings.longPress, let window = OrbexBridge.shared.island?.window, window.windowNumber == windowNumber else { return }
             longPressStart = NSEvent.mouseLocation
             longPressWork?.cancel()
             let work = DispatchWorkItem {
@@ -693,7 +721,7 @@ final class VoiceController: ObservableObject {
             let m = NSEvent.mouseLocation
             if hypot(m.x - start.x, m.y - start.y) > 4 { cancelLongPress() }
         case .leftMouseUp:
-            cancelLongPress()
+            if longPressStart != nil { cancelLongPress() }
         default:
             break
         }

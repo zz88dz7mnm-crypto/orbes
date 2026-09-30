@@ -29,6 +29,7 @@ let package = Package(
                 .linkedFramework("UserNotifications"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("QuartzCore"),
+                .linkedFramework("Speech"),
             ]
         ),
         // Relé mínimo de hooks (Claude Code / Codex) → socket Unix de la app.

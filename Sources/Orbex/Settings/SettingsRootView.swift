@@ -3,7 +3,7 @@ import OrbexCore
 
 /// Secciones de Configuración. Las de fases siguientes se suman cuando llegue su fase.
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case personaje, isla, tema, sonidos, reloj, asistente, claudeCode, timers, notas, acciones, programadas, memoria, musica, integraciones, general, accesibilidad, acercaDe
+    case personaje, isla, tema, sonidos, reloj, asistente, voz, claudeCode, timers, notas, acciones, programadas, memoria, musica, integraciones, general, accesibilidad, acercaDe
     // Fase 6 / cierre: privacidad (qué ve ORBEX, qué se guarda, permisos de macOS)
 
     var id: Self { self }
@@ -20,6 +20,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .programadas: return "Acciones programadas"
         case .memoria: return "Memoria"
         case .asistente: return "Asistente (Claude)"
+        case .voz: return "Voz"
         case .claudeCode: return "Claude Code"
         case .timers: return "Timers"
         case .notas: return "Notas"
@@ -42,6 +43,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .programadas: return "calendar.badge.clock"
         case .memoria: return "brain"
         case .asistente: return "sparkles"
+        case .voz: return "waveform"
         case .claudeCode: return "terminal"
         case .timers: return "timer"
         case .notas: return "note.text"
@@ -89,6 +91,7 @@ struct SettingsRootView: View {
         case .programadas: ScheduledActionsSettingsView()
         case .memoria: MemorySettingsView()
         case .asistente: AssistantSettingsView()
+        case .voz: VozSettingsView()
         case .claudeCode: ClaudeCodeSettingsView()
         case .timers: TimersSettingsView()
         case .notas: NotesSettingsView()

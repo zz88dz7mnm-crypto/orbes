@@ -124,6 +124,22 @@ Otros comandos:
 
 ---
 
+## Hablarle a ORBEX ("Orbex, …")
+
+Decile **"Orbex"** (o "Orbi", "Orbes"… entiende variantes) seguido de lo que quieras, y ORBEX lo hace. No
+responde hablando: se pone **magenta**, lleva la mano a la oreja mientras te escucha y asiente al terminar.
+
+- **Activar:** Configuración › Voz › prender. La primera vez macOS te pide micrófono y reconocimiento de voz.
+- **Atajo:** ⌃⌥Espacio (o ⌃⌥V si macOS se queda con el primero): hablás, te callás y listo. Tocarlo de nuevo corta.
+- **Siempre atento:** opcional (apagado por defecto, gasta algo de batería): escucha su nombre todo el tiempo.
+  Se pausa con la pantalla bloqueada.
+- **Privacidad:** el reconocimiento corre en tu Mac. Si falta el modelo en español: Ajustes del Sistema ›
+  Teclado › Dictado → agregá español.
+- **Ejemplos:** "Orbex, abrí Spotify" · "Orbi, poné un timer de 5 minutos" · "Orbex, recordame a las 18 llamar
+  a Juan" · "Orbex, anotá comprar pan" · "Orbex, mostrame el reloj" · cualquier otra cosa va a Claude.
+- Lo sensible (abrir algo fuera de tu lista, acciones con confirmación) **nunca** se hace solo por voz: se abre
+  el chat de la isla con el botón para confirmar.
+
 ## Problemas comunes
 
 | Problema | Solución |

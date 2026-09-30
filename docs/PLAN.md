@@ -1,8 +1,8 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🟣 ETAPA 3 · Limpieza, arreglos y voz: 70 %</h1>
+<h1 align="center">🟣 ETAPA 3 · Limpieza, arreglos y voz: 100 % ✅</h1>
 
-<h3 align="center">🛠️ Ahora mismo: V1 limpieza · V2 arreglos · V3/V4 voz (en paralelo)</h3>
+<h3 align="center">🛠️ Listo: bajar e instalar con scripts/actualizar.sh (ver INSTALAR.md) · 90 archivos OK · 149/149 pruebas</h3>
 
 # Etapa 3 — Asistente por voz ("Orbex, …") y limpieza
 
@@ -14,9 +14,9 @@ responder hablando), con color y gesto propios mientras escucha.
 - [x] V1 · Limpieza: fuera Resend, n8n, GitHub, Vercel (pollers, tarjetas, pastillas, claves, ajustes); sin minis a la derecha del notch; sin frase debajo de la cámara
 - [x] V2 · Arreglos de la isla: clic afuera cierra; forma e íconos sin saltos
 - [x] V3 · Voz (lógica, OrbexCore): palabra de activación con variantes, extracción del pedido, fin de frase, con pruebas
-- [ ] V4 · Voz (app): escucha en el dispositivo (Speech), permisos en el primer uso, pedido → comandos de ORBEX o Claude, Configuración › Voz
+- [x] V4 · Voz (app): escucha en el dispositivo (Speech), permisos en el primer uso, pedido → comandos de ORBEX o Claude, Configuración › Voz
 - [x] V5 · Gesto y color de escucha (magenta #E040FB): ORBEX pone la mano en la oreja, ondas según tu voz
-- [ ] V6 · Verificación (sintaxis, pruebas, símbolos) y docs
+- [x] V6 · Verificación (sintaxis, pruebas, símbolos) y docs
 
 ---
 
