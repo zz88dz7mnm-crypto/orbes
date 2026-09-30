@@ -13,7 +13,7 @@ enum IslandMode: String, CaseIterable {
 
 enum IslandView: String, CaseIterable {
     case overview, empty, approval, question, error, finished
-    case confused, upload, uploading, choose, mail, prompt
+    case confused, upload, uploading, choose, prompt
     case searching, result, note, settings, greeting
     // ORBEX: utilidades
     case timers, notes, music
@@ -66,7 +66,8 @@ struct AgentTask: Identifiable, Equatable {
 
 enum AgentSource: Equatable {
     case claudeCode
-    case n8n
+    /// Pastilla de un servicio opcional (Stripe, Cal.com, Notion).
+    case integration
 }
 
 // MARK: - View dimensions (from VIEWS in prototype)
@@ -106,7 +107,6 @@ enum IslandConst {
         .upload:    ViewLayout(height: 176, botX: 140, botY: 104, botDiameter: 62, agentMode: .column),
         .uploading: ViewLayout(height: 176, botX: 46,  botY: 118, botDiameter: 20, agentMode: .none),
         .choose:    ViewLayout(height: 176, botX: 60,  botY: 101, botDiameter: 52, agentMode: .column),
-        .mail:      ViewLayout(height: 240, botX: 56,  botY: nil, botDiameter: 46, agentMode: .column),
         .prompt:    ViewLayout(height: 160, botX: 52,  botY: nil, botDiameter: 44, agentMode: .column),
         .searching: ViewLayout(height: 160, botX: 52,  botY: nil, botDiameter: 44, agentMode: .column),
         .result:    ViewLayout(height: 160, botX: 52,  botY: nil, botDiameter: 44, agentMode: .column),
@@ -124,22 +124,6 @@ enum IslandConst {
     static let projectColors: [String: String] = [:]
 
     static let fallbackColors = ["#22C55E", "#EAB308", "#60A5FA", "#E879F9"]
-
-    // Available integration pills (matches AgentTask.integrationAgents)
-    struct IntegrationMeta {
-        let id: String
-        let name: String
-        let color: String
-    }
-    static let allIntegrations: [IntegrationMeta] = [
-        .init(id: "integration_resend",  name: "Resend",  color: "#22C55E"),
-        .init(id: "integration_n8n",     name: "n8n",     color: "#F29B38"),
-        .init(id: "integration_vercel",  name: "Vercel",  color: "#7C5CFF"),
-        .init(id: "integration_github",  name: "GitHub",  color: "#F4505E"),
-        .init(id: "integration_notion",  name: "Notion",  color: "#8C8C8C"),
-        .init(id: "integration_calcom",  name: "Cal.com", color: "#C9956A"),
-        .init(id: "integration_stripe",  name: "Stripe",  color: "#0570DE"),
-    ]
 
     /// Returns the fixed project color for a display name, or a stable fallback.
     static func colorForProject(_ name: String) -> String {

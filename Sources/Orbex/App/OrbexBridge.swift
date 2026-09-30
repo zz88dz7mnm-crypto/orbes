@@ -130,10 +130,10 @@ final class OrbexBridge {
     // MARK: - Avisos
 
     /// Aviso corto ("Nota guardada", "¡Terminó el timer!"): la isla muestra la vista `note` unos segundos
-    /// y vuelve a donde estaba. Nunca tapa algo que espera al usuario (permiso, pregunta, mail, chat).
+    /// y vuelve a donde estaba. Nunca tapa algo que espera al usuario (permiso, pregunta, chat).
     func showNote(_ text: String, symbol: String) {
         guard island != nil else { return }
-        let busy: Set<IslandView> = [.approval, .question, .mail, .prompt, .upload, .uploading, .choose, .greeting]
+        let busy: Set<IslandView> = [.approval, .question, .prompt, .upload, .uploading, .choose, .greeting]
         if state.mode == .expanded && busy.contains(state.view) { return }
         let wasExpanded = state.mode == .expanded
         let previous = state.view

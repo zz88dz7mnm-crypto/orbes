@@ -22,7 +22,6 @@ struct IslandViewContent: View {
         case .upload:    UploadView(state: state)
         case .uploading: UploadingView(state: state)
         case .choose:    ChooseView(state: state)
-        case .mail:      MailView(state: state)
         case .prompt:    PromptView(state: state)
         case .searching: SearchingView(state: state)
         case .result:    ResultView(state: state)
@@ -38,7 +37,6 @@ struct IslandViewContent: View {
 
 struct OverviewView: View {
     @ObservedObject var state: AppState
-    @State private var showingN8nDetail = false
 
     var agent: AgentTask? { state.focusTask }
 
@@ -51,7 +49,7 @@ struct OverviewView: View {
                 // Title row + ticker stacked (or integration card)
                 if let agent = agent {
                     if agent.isIntegration {
-                        IntegrationCardView(task: agent, showingDetail: $showingN8nDetail)
+                        IntegrationCardView(task: agent)
                     } else {
                         VStack(alignment: .leading, spacing: 0) {
                             HStack(spacing: 6) {
@@ -64,7 +62,7 @@ struct OverviewView: View {
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                                     .layoutPriority(1)
-                                Text(agent.source == .claudeCode ? "Claude Code" : "n8n")
+                                Text(agent.source == .claudeCode ? "Claude Code" : "Integración")
                                     .font(.system(size: 11))
                                     .foregroundColor(Color(hex: "#8E939C"))
                                     .lineLimit(1)
@@ -92,21 +90,19 @@ struct OverviewView: View {
                     }
                 }
 
-                // ↗ jump button — last in ZStack so it renders on top; hidden while any detail is open
-                if !showingN8nDetail {
-                    Button(action: { openAgentTarget(agent) }) {
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundColor(Color(hex: "#5F646D"))
-                            .frame(width: 16, height: 16)
-                            .background(Color.white.opacity(0.07))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 8)
-                    .padding(.trailing, 10)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                // ↗ saltar a la terminal / al servicio — último en el ZStack para quedar arriba
+                Button(action: { openAgentTarget(agent) }) {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundColor(Color(hex: "#5F646D"))
+                        .frame(width: 16, height: 16)
+                        .background(Color.white.opacity(0.07))
+                        .clipShape(Circle())
                 }
+                .buttonStyle(.plain)
+                .padding(.top, 8)
+                .padding(.trailing, 10)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .frame(width: 322)
 
@@ -118,7 +114,6 @@ struct OverviewView: View {
                 }
             }
         }
-        .onChange(of: state.focusId) { _, _ in showingN8nDetail = false }
     }
 
     private func openAgentTarget(_ task: AgentTask?) {
@@ -127,16 +122,6 @@ struct OverviewView: View {
         case "integration_claude":
             // La terminal (o el editor) donde corre Claude Code.
             SessionsBridge.shared.jumpToTerminal()
-        case "integration_resend":
-            NSWorkspace.shared.open(URL(string: "https://resend.com/emails")!)
-        case "integration_vercel":
-            NSWorkspace.shared.open(URL(string: "https://vercel.com/dashboard")!)
-        case "integration_github":
-            NSWorkspace.shared.open(URL(string: "https://github.com")!)
-        case "integration_n8n":
-            if let urlStr = KeychainStore.shared.get("n8n-url"), let url = URL(string: urlStr) {
-                NSWorkspace.shared.open(url)
-            }
         case "integration_stripe":
             NSWorkspace.shared.open(URL(string: "https://dashboard.stripe.com/payments")!)
         case "integration_notion":
@@ -149,22 +134,16 @@ struct OverviewView: View {
                 SessionsBridge.shared.jumpToTerminal(sessionID: sid)
                 return
             }
-            // Non-integration real tasks
-            if task.source == .n8n {
-                if let urlStr = KeychainStore.shared.get("n8n-url"), let url = URL(string: urlStr) {
-                    NSWorkspace.shared.open(url)
-                }
-            } else {
-                #if !APPSTORE
-                let terminalBundleIds = ["com.apple.Terminal", "com.googlecode.iterm2",
-                                         "net.kovidgoyal.kitty", "com.mitchellh.ghostty"]
-                if let hit = terminalBundleIds.compactMap({ id in
-                    NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }
-                }).first {
-                    hit.activate(options: .activateIgnoringOtherApps)
-                }
-                #endif
+            // Otra tarea: traer la terminal que esté abierta.
+            #if !APPSTORE
+            let terminalBundleIds = ["com.apple.Terminal", "com.googlecode.iterm2",
+                                     "net.kovidgoyal.kitty", "com.mitchellh.ghostty"]
+            if let hit = terminalBundleIds.compactMap({ id in
+                NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }
+            }).first {
+                hit.activate(options: .activateIgnoringOtherApps)
             }
+            #endif
         }
     }
 }
@@ -704,199 +683,10 @@ struct ChooseView: View {
                 let fileName = state.droppedFile?.name ?? "archivo"
                 (Text(fileName).font(.system(size: 14, weight: .semibold)) + Text(" está listo.").font(.system(size: 14, weight: .semibold)))
                 Text("¿Qué querés hacer con el archivo?").font(.system(size: 12.5)).foregroundColor(Color(hex: "#9398A1"))
-                HStack(spacing: 8) {
-                    PrimaryButton("Preguntar sobre esto") { state.view = .prompt }
-                    SecondaryButton("Mandar por mail") { state.view = .mail }
-                }
+                PrimaryButton("Preguntar sobre esto") { state.view = .prompt }
             }
             .padding(.leading, 98)
             .padding(.trailing, 18)
-        }
-    }
-}
-
-// MARK: - Mail
-
-struct MailView: View {
-    @ObservedObject var state: AppState
-    @State private var to: String = ""
-    @State private var subject: String = ""
-    @State private var bodyText: String = ""
-    @State private var statusMsg: String = ""
-    @State private var isSending = false
-
-    var body: some View {
-        ZStack(alignment: .leading) {
-            CardBackground(wash: nil)
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Text("Mail nuevo").font(.system(size: 12, weight: .semibold))
-                    if let name = state.droppedFile?.name {
-                        Text("con").font(.system(size: 12)).foregroundColor(Color(hex: "#8E939C"))
-                        Text(name).font(.system(size: 12)).foregroundColor(Color(hex: "#8E939C"))
-                            .lineLimit(1).truncationMode(.middle)
-                    }
-                }
-
-                MailField(label: "Para", placeholder: "direccion@ejemplo.com", text: $to)
-                MailField(label: "Asunto", placeholder: state.droppedFile?.name ?? "Asunto", text: $subject)
-
-                // Body — TextEditor scrolls internally when text overflows
-                TextEditor(text: $bodyText)
-                    .scrollContentBackground(.hidden)
-                    .font(.system(size: 12.5))
-                    .foregroundColor(Color(hex: "#F5F6F8"))
-                    .frame(height: 44)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                if !statusMsg.isEmpty {
-                    Text(statusMsg).font(.system(size: 11)).foregroundColor(Color(hex: "#FF8D97"))
-                }
-
-                HStack(spacing: 8) {
-                    PrimaryButton(isSending ? "Enviando…" : "Enviar") {
-                        guard !isSending else { return }
-                        sendMail()
-                    }
-                    SecondaryButton("Cancelar") { state.view = .choose }
-                }
-            }
-            .padding(.leading, 92)
-            .padding(.trailing, 18)
-            .padding(.vertical, 8)
-        }
-        .onAppear { subject = state.droppedFile?.name ?? "" }
-    }
-
-    private func sendMail() {
-        guard !to.isEmpty else { statusMsg = "Falta el destinatario."; return }
-        let subj = subject.isEmpty ? (state.droppedFile?.name ?? "Archivo") : subject
-
-        // Prefer Resend if API key + sender address are configured
-        let apiKey  = KeychainStore.shared.get("resend-api-key")
-        let fromAddr = KeychainStore.shared.get("resend-from")
-
-        if let apiKey, let fromAddr {
-            isSending = true
-            statusMsg = ""
-            let recipient = to
-            let msgBody  = bodyText
-            let fileURL  = state.droppedFile?.url
-            Task {
-                let ok = await sendViaResend(apiKey: apiKey, from: fromAddr,
-                                              to: recipient, subject: subj,
-                                              body: msgBody, fileURL: fileURL)
-                await MainActor.run {
-                    isSending = false
-                    if ok { onSuccess(recipient: recipient) }
-                    else  { statusMsg = "Error de Resend: revisá la clave de API y el remitente." }
-                }
-            }
-        } else if apiKey != nil && fromAddr == nil {
-            // API key set but no sender — guide user instead of silent fallback
-            statusMsg = "Configurá la dirección del remitente en Ajustes."
-        } else {
-            // No Resend — fallback to Mail
-            sendViaAppleMail(to: to, subject: subj)
-        }
-    }
-
-    private func sendViaResend(apiKey: String, from: String, to: String,
-                                subject: String, body: String, fileURL: URL?) async -> Bool {
-        guard let url = URL(string: "https://api.resend.com/emails") else { return false }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        var payload: [String: Any] = [
-            "from": from,
-            "to": [to],
-            "subject": subject,
-            "text": body.isEmpty ? " " : body
-        ]
-        if let fileURL, let data = try? Data(contentsOf: fileURL) {
-            payload["attachments"] = [[
-                "filename": fileURL.lastPathComponent,
-                "content": data.base64EncodedString()
-            ]]
-        }
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: payload) else { return false }
-        request.httpBody = httpBody
-        guard let (data, response) = try? await URLSession.shared.data(for: request) else { return false }
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if code == 200 || code == 201 { return true }
-        // Surface Resend error body for debugging
-        if let body = String(data: data, encoding: .utf8) {
-            print("[Resend] HTTP \(code): \(body)")
-        }
-        return false
-    }
-
-    private func sendViaAppleMail(to: String, subject: String) {
-        #if APPSTORE
-        // App Store: no AppleScript — use NSSharingService to compose (user sends manually)
-        guard let service = NSSharingService(named: .composeEmail) else {
-            statusMsg = "Mail no está disponible."
-            return
-        }
-        var items: [Any] = [bodyText.isEmpty ? " " : bodyText]
-        if let url = state.droppedFile?.url,
-           FileManager.default.fileExists(atPath: url.path) {
-            items.append(url)
-        }
-        service.recipients = [to]
-        service.subject = subject
-        service.perform(withItems: items)
-        onSuccess(recipient: to)
-        #else
-        func asEscape(_ s: String) -> String {
-            s.replacingOccurrences(of: "\\", with: "\\\\")
-             .replacingOccurrences(of: "\"", with: "\\\"")
-        }
-
-        let bodyLines = bodyText.isEmpty ? [""] : bodyText.components(separatedBy: "\n")
-        let bodyExpr = bodyLines.map { "\"\(asEscape($0))\"" }.joined(separator: " & linefeed & ")
-            + " & return & return"
-
-        let attachBlock: String
-        if let url = state.droppedFile?.url,
-           FileManager.default.fileExists(atPath: url.path) {
-            let escapedPath = asEscape(url.path)
-            attachBlock = "make new attachment with properties {file name:(POSIX file \"\(escapedPath)\")} at after the last paragraph of content"
-        } else {
-            attachBlock = ""
-        }
-
-        let script = """
-        tell application "Mail"
-            set m to make new outgoing message with properties {subject:"\(asEscape(subject))", visible:false}
-            set content of m to \(bodyExpr)
-            tell m
-                make new to recipient at end of to recipients with properties {address:"\(asEscape(to))"}
-                \(attachBlock)
-            end tell
-            delay 1
-            send m
-        end tell
-        """
-        var err: NSDictionary?
-        NSAppleScript(source: script)?.executeAndReturnError(&err)
-        if err == nil { onSuccess(recipient: to) }
-        else { statusMsg = "Error de Mail: \(err?["NSAppleScriptErrorMessage"] as? String ?? "desconocido")" }
-        #endif
-    }
-
-    private func onSuccess(recipient: String) {
-        SoundEngine.shared.play("send")
-        NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.wink)
-        state.noteMessage = "Mail enviado a \(recipient)."
-        state.view = .note
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            NotificationCenter.default.post(name: .islandCollapse, object: nil)
         }
     }
 }
@@ -1366,17 +1156,12 @@ struct NoteView: View {
 
 struct IntegrationCardView: View {
     let task: AgentTask
-    @Binding var showingDetail: Bool
     @ObservedObject private var appState = AppState.shared
 
     private var isConfigured: Bool {
         switch task.id {
         case "integration_claude":
             return ClaudeHooksFile.isInstalled
-        case "integration_resend":  return KeychainStore.shared.get("resend-api-key") != nil
-        case "integration_n8n":     return KeychainStore.shared.get("n8n-api-key")    != nil
-        case "integration_vercel":  return KeychainStore.shared.get("vercel-token")   != nil
-        case "integration_github":  return KeychainStore.shared.get("github-token")   != nil
         case "integration_stripe":  return KeychainStore.shared.get("stripe-api-key") != nil
         case "integration_notion":  return KeychainStore.shared.get("notion-api-key") != nil
         case "integration_calcom":  return KeychainStore.shared.get("calcom-api-key") != nil
@@ -1387,12 +1172,6 @@ struct IntegrationCardView: View {
     private var openURL: URL? {
         switch task.id {
         case "integration_claude":  return nil  // uses terminal button below
-        case "integration_resend":  return URL(string: "https://resend.com/emails")
-        case "integration_n8n":
-            if let s = KeychainStore.shared.get("n8n-url") { return URL(string: s) }
-            return nil
-        case "integration_vercel":  return URL(string: "https://vercel.com/dashboard")
-        case "integration_github":  return URL(string: "https://github.com")
         case "integration_stripe":  return URL(string: "https://dashboard.stripe.com/payments")
         case "integration_notion":  return URL(string: "https://notion.so")
         case "integration_calcom":  return URL(string: "https://app.cal.com/bookings")
@@ -1403,27 +1182,6 @@ struct IntegrationCardView: View {
     // VS Code with active session: show ticker layout (same as overview)
     private var vsCodeSessionActive: Bool {
         task.id == "integration_claude" && (task.state != .idle || !task.steps.isEmpty)
-    }
-
-    // n8n with a finished execution: show result row instead of "Open n8n" button
-    private var n8nHasActivity: Bool {
-        task.id == "integration_n8n" && !task.steps.isEmpty &&
-        (task.state == .finished || task.state == .error)
-    }
-
-    // Vercel with recent deployments
-    private var vercelHasActivity: Bool {
-        task.id == "integration_vercel" && !appState.vercelDeployments.isEmpty
-    }
-
-    // Resend with recent emails
-    private var resendHasData: Bool {
-        task.id == "integration_resend" && !appState.resendEmails.isEmpty
-    }
-
-    // GitHub with stats loaded
-    private var githubHasData: Bool {
-        task.id == "integration_github" && appState.githubStats != nil
     }
 
     // Stripe: show card as soon as first poll completes (balance OR payments)
@@ -1442,28 +1200,7 @@ struct IntegrationCardView: View {
     }
 
     var body: some View {
-        if showingDetail && n8nHasActivity {
-            N8nDetailView(task: task) {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) { showingDetail = false }
-            }
-            .transition(.opacity)
-        } else if showingDetail && vercelHasActivity {
-            VercelDetailView(deployment: appState.vercelDeployments[0]) {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) { showingDetail = false }
-            }
-            .transition(.opacity)
-        } else if vercelHasActivity {
-            VercelDeploymentListView(deployments: appState.vercelDeployments, onOpenDetail: {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) { showingDetail = true }
-            })
-            .transition(.opacity)
-        } else if resendHasData {
-            ResendCardView(emails: appState.resendEmails, total: appState.resendTotal)
-                .transition(.opacity)
-        } else if githubHasData {
-            GitHubStatsCardView(stats: appState.githubStats!)
-                .transition(.opacity)
-        } else if stripeHasData {
+        if stripeHasData {
             StripeCardView()
                 .transition(.opacity)
         } else if calcomHasData {
@@ -1509,7 +1246,7 @@ struct IntegrationCardView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(.top, 4)
         } else {
-            // Idle / not connected view — slides in from left when returning from detail
+            // Sin datos todavía / sin configurar
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Circle()
@@ -1549,29 +1286,6 @@ struct IntegrationCardView: View {
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Color(hex: task.color).opacity(0.7))
                             .buttonStyle(.plain)
-                    } else if n8nHasActivity {
-                        // Clickable pill — tap to open execution detail
-                        let success = task.state == .finished
-                        let accent  = success ? Color(hex: "#22C55E") : Color(hex: "#F4505E")
-                        Button(action: {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) { showingDetail = true }
-                        }) {
-                            HStack(spacing: 5) {
-                                Circle().fill(accent).frame(width: 5, height: 5)
-                                Text(task.steps.first ?? "Flujo")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(Color(hex: "#C5C8CD"))
-                                    .lineLimit(1).truncationMode(.tail)
-                                Image(systemName: "ellipsis")
-                                    .font(.system(size: 8, weight: .medium))
-                                    .foregroundColor(Color(hex: "#6B7079"))
-                            }
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(accent.opacity(0.1))
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(accent.opacity(0.22), lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
                     } else if let url = openURL {
                         Button("Abrir \(task.name)") { NSWorkspace.shared.open(url) }
                             .font(.system(size: 11, weight: .medium))
@@ -1635,328 +1349,6 @@ struct IntegrationCardView: View {
         if let appURL = appURL {
             NSWorkspace.shared.openApplication(at: appURL, configuration: .init(), completionHandler: nil)
         }
-    }
-}
-
-// MARK: - Vercel Deployment List View
-
-struct VercelDeploymentListView: View {
-    let deployments: [VercelDeployment]
-    let onOpenDetail: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(Color(hex: "#7C5CFF"))
-                    .frame(width: 7, height: 7)
-                Text("Vercel")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Despliegues")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color(hex: "#8E939C"))
-            }
-            .padding(.top, 6)
-            .padding(.leading, 108)
-            .padding(.trailing, 36)
-
-            // Deployment rows
-            VStack(alignment: .leading, spacing: 3) {
-                // First deployment — highlighted, with detail button
-                if let first = deployments.first {
-                    let accent = Color(hex: first.isSuccess ? "#22C55E" : "#F4505E")
-                    HStack(spacing: 5) {
-                        Circle().fill(accent).frame(width: 5, height: 5)
-                        Text(first.projectName)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color(hex: "#C5C8CD"))
-                            .lineLimit(1).truncationMode(.tail)
-                            .layoutPriority(1)
-                        Text(first.timeAgo)
-                            .font(.system(size: 10))
-                            .foregroundColor(Color(hex: "#6B7079"))
-                        Button(action: onOpenDetail) {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 8, weight: .medium))
-                                .foregroundColor(Color(hex: "#6B7079"))
-                                .frame(width: 18, height: 18)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(accent.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                }
-
-                // Remaining deployments — plain rows, identical structure → perfect alignment
-                ForEach(Array(deployments.dropFirst().prefix(2))) { dep in
-                    let accent = Color(hex: dep.isSuccess ? "#22C55E" : "#F4505E")
-                    HStack(spacing: 5) {
-                        Circle().fill(accent).frame(width: 5, height: 5)
-                        Text(dep.projectName)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color(hex: "#9398A1"))
-                            .lineLimit(1).truncationMode(.tail)
-                            .layoutPriority(1)
-                        Text(dep.timeAgo)
-                            .font(.system(size: 10))
-                            .foregroundColor(Color(hex: "#6B7079"))
-                    }
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .padding(.top, 5)
-            .padding(.leading, 108)
-            .padding(.trailing, 12)
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(.top, 4)
-    }
-}
-
-// MARK: - Vercel Deployment Detail View
-
-struct VercelDetailView: View {
-    let deployment: VercelDeployment
-    let onClose: () -> Void
-
-    private var accent: Color { Color(hex: deployment.isSuccess ? "#22C55E" : "#F4505E") }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Header
-            HStack(spacing: 7) {
-                Button(action: onClose) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(Color(hex: "#6B7079"))
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                Circle().fill(accent).frame(width: 6, height: 6)
-                Text(deployment.projectName)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(hex: "#F5F6F8"))
-                    .lineLimit(1).truncationMode(.middle)
-                    .layoutPriority(1)
-                Spacer(minLength: 2)
-                Text(deployment.statusLabel)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(accent)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(accent.opacity(0.14))
-                    .clipShape(Capsule())
-            }
-
-            // Details
-            VStack(alignment: .leading, spacing: 4) {
-                if let commit = deployment.commitMessage {
-                    Text(commit)
-                        .font(.system(size: 10.5))
-                        .foregroundColor(Color(hex: "#C5C8CD"))
-                        .lineLimit(2)
-                }
-                HStack(spacing: 8) {
-                    if let branch = deployment.branch {
-                        Label(branch, systemImage: "arrow.branch")
-                            .font(.system(size: 10))
-                            .foregroundColor(Color(hex: "#6B7079"))
-                    }
-                    Text(orbexTimeAgoPhrase(since: deployment.createdAt))
-                        .font(.system(size: 10))
-                        .foregroundColor(Color(hex: "#6B7079"))
-                }
-                Button(action: {
-                    if let url = URL(string: "https://\(deployment.url)") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }) {
-                    Text(deployment.url)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(Color(hex: "#7C5CFF").opacity(0.85))
-                        .lineLimit(1).truncationMode(.middle)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.top, 8)
-        .padding(.leading, 108)
-        .padding(.trailing, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .contentShape(Rectangle())
-    }
-}
-
-// MARK: - Resend Card View
-
-struct ResendPulseDot: View {
-    @State private var on = false
-    var body: some View {
-        Circle()
-            .fill(Color(hex: "#22C55E"))
-            .frame(width: 4, height: 4)
-            .opacity(on ? 1 : 0.2)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { on = true }
-            }
-    }
-}
-
-struct ResendCardView: View {
-    let emails: [ResendEmail]
-    let total: Int?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(Color(hex: "#22C55E"))
-                    .frame(width: 7, height: 7)
-                Text("Resend")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Correos")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color(hex: "#8E939C"))
-                if let total {
-                    ResendPulseDot()
-                    Text("\(total)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color(hex: "#C5C8CD"))
-                        .monospacedDigit()
-                }
-            }
-            .padding(.top, 6)
-            .padding(.leading, 108)
-            .padding(.trailing, 36)
-
-            // Email rows — first is highlighted, rest plain (same structure as Vercel list)
-            VStack(alignment: .leading, spacing: 3) {
-                if let first = emails.first {
-                    let accent = Color(hex: first.isDelivered ? "#22C55E" : "#F4505E")
-                    HStack(spacing: 5) {
-                        Circle().fill(accent).frame(width: 5, height: 5)
-                        Text(first.recipientShort)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color(hex: "#C5C8CD"))
-                            .lineLimit(1).truncationMode(.tail)
-                            .layoutPriority(1)
-                        Text(first.timeAgo)
-                            .font(.system(size: 10))
-                            .foregroundColor(Color(hex: "#6B7079"))
-                        if !first.subject.isEmpty {
-                            Text(first.subject)
-                                .font(.system(size: 10))
-                                .foregroundColor(Color(hex: "#4D5159"))
-                                .lineLimit(1).truncationMode(.tail)
-                        }
-                    }
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(accent.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                }
-
-                ForEach(Array(emails.dropFirst().prefix(2))) { email in
-                    let accent = Color(hex: email.isDelivered ? "#22C55E" : "#F4505E")
-                    HStack(spacing: 5) {
-                        Circle().fill(accent).frame(width: 5, height: 5)
-                        Text(email.recipientShort)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color(hex: "#9398A1"))
-                            .lineLimit(1).truncationMode(.tail)
-                            .layoutPriority(1)
-                        Text(email.timeAgo)
-                            .font(.system(size: 10))
-                            .foregroundColor(Color(hex: "#6B7079"))
-                    }
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .padding(.top, 5)
-            .padding(.leading, 108)
-            .padding(.trailing, 12)
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(.top, 4)
-    }
-}
-
-// MARK: - GitHub Stats Card View
-
-struct GitHubStatsCardView: View {
-    let stats: GitHubStats
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(Color(hex: "#F4505E"))
-                    .frame(width: 7, height: 7)
-                Text("GitHub")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Resumen")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color(hex: "#8E939C"))
-            }
-            .padding(.top, 6)
-            .padding(.leading, 108)
-            .padding(.trailing, 36)
-
-            // Stats rows
-            VStack(alignment: .leading, spacing: 5) {
-                StatRow(icon: "star.fill", color: "#F5A524",
-                        label: "Estrellas en total", value: formatCount(stats.totalStars))
-                StatRow(icon: "square.stack.fill", color: "#6B7079",
-                        label: "Repositorios", value: "\(stats.totalRepos)")
-            }
-            .padding(.top, 8)
-            .padding(.leading, 108)
-            .padding(.trailing, 12)
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(.top, 4)
-    }
-
-    private func formatCount(_ n: Int) -> String {
-        if n >= 1000 { return String(format: "%.1fk", Double(n) / 1000) }
-        return "\(n)"
-    }
-}
-
-private struct StatRow: View {
-    let icon: String
-    let color: String
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-                .foregroundColor(Color(hex: color))
-                .frame(width: 14)
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundColor(Color(hex: "#6B7079"))
-            Spacer()
-            Text(value)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hex: "#C5C8CD"))
-                .monospacedDigit()
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -2389,74 +1781,6 @@ struct NotionCardView: View {
     }
 }
 
-// MARK: - n8n Execution Detail View
-
-struct N8nDetailView: View {
-    let task: AgentTask
-    let onClose: () -> Void
-
-    private var success: Bool  { task.state == .finished }
-    private var accent: Color  { success ? Color(hex: "#22C55E") : Color(hex: "#F4505E") }
-    private var statusLabel: String { success ? "Salió bien" : "Falló" }
-    private var detail: String? { task.steps.dropFirst().first }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-
-            // Header: back button + workflow name + status badge
-            HStack(spacing: 7) {
-                Button(action: onClose) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(Color(hex: "#6B7079"))
-                        .frame(width: 28, height: 28)   // large hit area
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                Circle().fill(accent).frame(width: 6, height: 6)
-
-                Text(task.steps.first ?? "Flujo")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(hex: "#F5F6F8"))
-                    .lineLimit(1).truncationMode(.middle)
-                    .layoutPriority(1)
-
-                Spacer(minLength: 2)
-
-                Text(statusLabel)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(accent)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(accent.opacity(0.14))
-                    .clipShape(Capsule())
-            }
-
-            // Detail body — monospaced, selectable
-            if let detail {
-                ScrollView(.vertical, showsIndicators: false) {
-                    Text(detail)
-                        .font(.system(size: 10.5, design: .monospaced))
-                        .foregroundColor(Color(hex: "#9398A1"))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineSpacing(2)
-                        .textSelection(.enabled)
-                }
-                .frame(maxHeight: 88)
-            } else {
-                Text(success ? "Terminó sin errores." : "No hay detalles del error.")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color(hex: "#6B7079"))
-            }
-        }
-        .padding(.top, 8)
-        .padding(.leading, 108)
-        .padding(.trailing, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .contentShape(Rectangle())   // prevent taps falling through transparent areas
-    }
-}
-
 // MARK: - Ticker (overview scrolling task steps) V2
 
 struct TickerView: View {
@@ -2761,28 +2085,6 @@ struct PillBadgeView: View {
     }
 }
 
-// MARK: - Column agents (right side of non-overview views)
-
-struct ColumnAgentsView: View {
-    @ObservedObject var state: AppState
-
-    var others: [AgentTask] {
-        state.tasks.filter { $0.id != state.focusId }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(others.prefix(4).enumerated()), id: \.1.id) { idx, task in
-                MiniBotCanvasView(task: task)
-                    .frame(width: 16 / 0.6, height: 16 / 0.6)
-                    .frame(width: 16, height: 16)
-                    .position(x: 0, y: CGFloat(50 + idx * 24))
-                    .animation(.spring(response: 0.5, dampingFraction: 0.72).delay(Double(idx) * 0.035), value: idx)
-            }
-        }
-    }
-}
-
 // MARK: - Card background
 
 struct CardBackground<Content: View>: View {
@@ -2898,28 +2200,6 @@ struct ContextChip: View {
                 withAnimation(.easeOut(duration: 0.3)) { glowing = false }
             }
         }
-    }
-}
-
-struct MailField: View {
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.system(size: 12.5))
-                .foregroundColor(Color(hex: "#80858E"))
-                .frame(width: 44, alignment: .leading)
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12.5))
-                .foregroundColor(Color(hex: "#F5F6F8"))
-        }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 

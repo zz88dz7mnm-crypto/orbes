@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// Claves y tokens en el Keychain de macOS (nunca en disco ni en `UserDefaults`).
-/// Uso: `Keychain.set("re_...", for: "resend-api-key")`, `Keychain.get("resend-api-key")`.
+/// Uso: `Keychain.set("rk_...", for: "stripe-api-key")`, `Keychain.get("stripe-api-key")`.
 /// Los ítems quedan solo en esta Mac (no se sincronizan con iCloud ni migran a otro equipo).
 enum Keychain {
     static let service = "com.orbex.ORBEX"
@@ -55,12 +55,9 @@ final class KeychainStore: @unchecked Sendable {
     private var cache: [String: String] = [:]
     private let lock = NSLock()
 
-    /// Claves de las integraciones. El asistente usa `claude` local: no hay clave de API.
+    /// Claves de las integraciones opcionales (Stripe, Cal.com, Notion). El asistente usa `claude`
+    /// local: no hay clave de API.
     static let allKeys = [
-        "resend-api-key", "resend-from",
-        "n8n-url", "n8n-api-key",
-        "vercel-token",
-        "github-token",
         "stripe-api-key",
         "calcom-api-key",
         "notion-api-key",

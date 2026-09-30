@@ -63,7 +63,7 @@ struct UploadCanvasView: View {
 
     @MainActor @ViewBuilder
     private func chooseOverlay(f: USFrame) -> some View {
-        // Mismas posiciones que dibuja el lienzo: botón 1 x=114 w=168, botón 2 x=290 w=120, y=113 h=26.
+        // Misma posición que dibuja el lienzo: botón x=114 w=168, y=113 h=26.
         ZStack(alignment: .topLeading) {
             Button {
                 choose(.prompt)
@@ -76,18 +76,6 @@ struct UploadCanvasView: View {
             .accessibilityLabel("Preguntar sobre esto")
             .frame(width: 168, height: 26)
             .position(x: 114 + 84, y: 113 + 13)
-
-            Button {
-                choose(.mail)
-            } label: {
-                Color.clear
-                    .frame(width: 120, height: 26)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Mandar por mail")
-            .frame(width: 120, height: 26)
-            .position(x: 290 + 60, y: 113 + 13)
         }
         .opacity(f.chooseAlpha)
         .allowsHitTesting(f.chooseAlpha > 0.5)
@@ -346,14 +334,6 @@ private struct UploadScene {
             .font(.system(size: 12.5, weight: .medium))
             .foregroundColor(Color(red: 0.043, green: 0.047, blue: 0.055))
         c.draw(ask, at: CGPoint(x: 198, y: 126), anchor: .center)
-
-        // Botón secundario (tenue)
-        c.fill(roundedRect(CGRect(x: 290, y: 113, width: 120, height: 26), r: 13),
-               with: .color(Color.white.opacity(0.09)))
-        let mail = Text("Mandar por mail")
-            .font(.system(size: 12.5, weight: .medium))
-            .foregroundColor(Color(hex: "#F1F2F4"))
-        c.draw(mail, at: CGPoint(x: 350, y: 126), anchor: .center)
     }
 
     // MARK: ORBEX

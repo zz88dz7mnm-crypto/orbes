@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SchedulerStore.shared.start()  // recordatorios y acciones a hora puntual
         _ = MemoryStore.shared         // memoria local (contexto del asistente)
         MusicStore.shared.start()      // Spotify / Música
-        startServices()                // GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com
+        startServices()                // Stripe, Notion, Cal.com (opcionales: solo con clave guardada)
         if UserDefaults.standard.bool(forKey: "orbex.music.beatDetection") {
             Task { @MainActor in _ = await BeatDetector.shared.start() }
         }
@@ -63,12 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Servicios conectados: cada uno consulta solo si su clave está en el Keychain (si no, no hace nada).
+    /// Servicios opcionales: cada uno consulta solo si su clave está en el Keychain (si no, no hace nada).
     private func startServices() {
-        N8nPoller.shared.start()
-        VercelPoller.shared.start()
-        ResendPoller.shared.start()
-        GithubPoller.shared.start()
         StripePoller.shared.start()
         CalcomPoller.shared.start()
         NotionPoller.shared.start()

@@ -238,8 +238,8 @@ final class SessionsBridge: ObservableObject {
         guard old != nil, old != .idle else { return }  // no avisar de sesiones viejas al arrancar
         endedSession = s
 
-        // No tapar lo que espera al usuario (permiso, pregunta, chat, mail…).
-        let busy: Set<IslandView> = [.approval, .question, .mail, .prompt, .upload, .uploading, .choose,
+        // No tapar lo que espera al usuario (permiso, pregunta, chat…).
+        let busy: Set<IslandView> = [.approval, .question, .prompt, .upload, .uploading, .choose,
                                      .greeting, .settings, .searching, .result]
         if state.mode == .expanded && busy.contains(state.view) { return }
         if state.tasks.contains(where: { $0.id == id }) { state.setFocus(id) }

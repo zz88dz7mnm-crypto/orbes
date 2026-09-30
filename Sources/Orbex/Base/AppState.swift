@@ -6,24 +6,20 @@ import SwiftUI
 import Combine
 import OrbexCore
 
-// Integration pills — always-present, never purged
+// Pastillas fijas de integraciones (nunca se purgan).
 extension AgentTask {
-    /// All available integration pills. Claude is always active; others are opt-in (max 4).
+    /// Todas las pastillas posibles. Claude Code está siempre; Stripe, Cal.com y Notion son opcionales
+    /// (apagadas por defecto: solo aparecen si se prenden en Configuración › Integraciones).
     static let integrationAgents: [AgentTask] = [
-        AgentTask(id: "integration_claude",  name: "Claude Code",   color: "#F5F6F8", state: .idle, steps: [], source: .claudeCode, isIntegration: true),
-        AgentTask(id: "integration_resend",  name: "Resend",    color: "#22C55E", state: .idle, steps: [], source: .n8n, isIntegration: true),
-        AgentTask(id: "integration_n8n",     name: "n8n",       color: "#F29B38", state: .idle, steps: [], source: .n8n, isIntegration: true),
-        AgentTask(id: "integration_vercel",  name: "Vercel",    color: "#7C5CFF", state: .idle, steps: [], source: .n8n, isIntegration: true),
-        AgentTask(id: "integration_github",  name: "GitHub",    color: "#F4505E", state: .idle, steps: [], source: .n8n, isIntegration: true),
-        AgentTask(id: "integration_notion",  name: "Notion",    color: "#8C8C8C", state: .idle, steps: [], source: .n8n, isIntegration: true),
-        AgentTask(id: "integration_calcom",  name: "Cal.com",   color: "#C9956A", state: .idle, steps: [], source: .n8n, isIntegration: true),
-        AgentTask(id: "integration_stripe",  name: "Stripe",    color: "#0570DE", state: .idle, steps: [], source: .n8n, isIntegration: true),
+        AgentTask(id: "integration_claude",  name: "Claude Code", color: "#F5F6F8", state: .idle, steps: [], source: .claudeCode, isIntegration: true),
+        AgentTask(id: "integration_stripe",  name: "Stripe",      color: "#0570DE", state: .idle, steps: [], source: .integration, isIntegration: true),
+        AgentTask(id: "integration_calcom",  name: "Cal.com",     color: "#C9956A", state: .idle, steps: [], source: .integration, isIntegration: true),
+        AgentTask(id: "integration_notion",  name: "Notion",      color: "#8C8C8C", state: .idle, steps: [], source: .integration, isIntegration: true),
     ]
 
-    /// IDs that can be toggled (VS Code is always on and excluded from this list)
+    /// IDs que se pueden prender/apagar (Claude Code está siempre y no figura acá).
     static let toggleableIntegrationIds: [String] = [
-        "integration_resend", "integration_n8n", "integration_vercel", "integration_github",
-        "integration_notion", "integration_calcom", "integration_stripe",
+        "integration_stripe", "integration_calcom", "integration_notion",
     ]
 
 }
@@ -126,26 +122,8 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(Int(hotkeyCode), forKey: "hotkeyCode") }
     }
 
-    // Vercel project filter — empty = watch all projects
-    @Published var vercelProjectFilter: Set<String> = [] {
-        didSet {
-            if let data = try? JSONEncoder().encode(Array(vercelProjectFilter)) {
-                UserDefaults.standard.set(data, forKey: "vercelProjectFilter")
-            }
-        }
-    }
-
-    // n8n workflow filter — empty = watch all workflows
-    @Published var n8nWorkflowFilter: Set<String> = [] {
-        didSet {
-            if let data = try? JSONEncoder().encode(Array(n8nWorkflowFilter)) {
-                UserDefaults.standard.set(data, forKey: "n8nWorkflowFilter")
-            }
-        }
-    }
-
-    // Active integration pills (VS Code excluded — always on). Max 4.
-    @Published var activeIntegrations: Set<String> = ["integration_resend", "integration_n8n", "integration_vercel", "integration_github"] {
+    // Pastillas opcionales prendidas (Claude Code no cuenta: está siempre). Por defecto, ninguna.
+    @Published var activeIntegrations: Set<String> = [] {
         didSet {
             if let data = try? JSONEncoder().encode(Array(activeIntegrations)) {
                 UserDefaults.standard.set(data, forKey: "activeIntegrations")
@@ -155,16 +133,6 @@ final class AppState: ObservableObject {
 
     // Pending API result
     @Published var searchResult: SearchResult? = nil
-
-    // Vercel deployments (populated by VercelPoller)
-    @Published var vercelDeployments: [VercelDeployment] = []
-
-    // Resend emails (populated by ResendPoller)
-    @Published var resendEmails: [ResendEmail] = []
-    @Published var resendTotal: Int? = nil
-
-    // GitHub stats (populated by GithubPoller)
-    @Published var githubStats: GitHubStats? = nil
 
     // Stripe (populated by StripePoller)
     @Published var stripePayments: [StripePayment] = []
@@ -213,12 +181,14 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "hotkeyEnabled") as? Bool  { hotkeyEnabled = v }
         if let v = ud.object(forKey: "hotkeyFlags")   as? Int   { hotkeyFlags = UInt(v) }
         if let v = ud.object(forKey: "hotkeyCode")    as? Int   { hotkeyCode = UInt16(v) }
-        if let d = ud.data(forKey: "vercelProjectFilter"),
-           let a = try? JSONDecoder().decode([String].self, from: d) { vercelProjectFilter = Set(a) }
-        if let d = ud.data(forKey: "n8nWorkflowFilter"),
-           let a = try? JSONDecoder().decode([String].self, from: d) { n8nWorkflowFilter = Set(a) }
+        // Solo las pastillas que siguen existiendo (Resend, n8n, Vercel y GitHub se sacaron).
         if let d = ud.data(forKey: "activeIntegrations"),
-           let a = try? JSONDecoder().decode([String].self, from: d) { activeIntegrations = Set(a) }
+           let a = try? JSONDecoder().decode([String].self, from: d) {
+            activeIntegrations = Set(a).intersection(AgentTask.toggleableIntegrationIds)
+        }
+        // Restos de las integraciones que se sacaron.
+        ud.removeObject(forKey: "vercelProjectFilter")
+        ud.removeObject(forKey: "n8nWorkflowFilter")
 
         // Sync SoundEngine volume on launch
         SoundEngine.shared.volume = Float(soundVolume)
@@ -291,7 +261,7 @@ final class AppState: ObservableObject {
         else if view == .overview && tasks.isEmpty { view = .empty }
     }
 
-    /// Load integration pills respecting activeIntegrations. VS Code always loads. Safe to call multiple times.
+    /// Carga las pastillas según `activeIntegrations` (Claude Code siempre). Se puede llamar varias veces.
     func loadIntegrationTasks() {
         for task in AgentTask.integrationAgents {
             let shouldLoad = task.id == "integration_claude" || activeIntegrations.contains(task.id)
@@ -303,15 +273,14 @@ final class AppState: ObservableObject {
         syncMode()
     }
 
-    /// Toggle an integration pill on/off. VS Code cannot be toggled. Max 4 active at once.
+    /// Prende o apaga una pastilla opcional. Claude Code no se puede apagar.
     func toggleIntegration(_ id: String) {
-        guard id != "integration_claude" else { return }
+        guard AgentTask.toggleableIntegrationIds.contains(id) else { return }
         if activeIntegrations.contains(id) {
             activeIntegrations.remove(id)
             tasks.removeAll { $0.id == id }
             if focusId == id { focusId = "integration_claude" }
         } else {
-            guard activeIntegrations.count < 4 else { return }
             activeIntegrations.insert(id)
             if let task = AgentTask.integrationAgents.first(where: { $0.id == id }),
                !tasks.contains(where: { $0.id == id }) {
@@ -356,56 +325,6 @@ func orbexTimeAgo(since date: Date, now: Date = Date()) -> String {
     if diff < 3600  { return "\(Int(diff/60)) min" }
     if diff < 86400 { return "\(Int(diff/3600)) h" }
     return "\(Int(diff/86400)) d"
-}
-
-/// Frase larga: "recién" o "hace 5 min".
-func orbexTimeAgoPhrase(since date: Date, now: Date = Date()) -> String {
-    let short = orbexTimeAgo(since: date, now: now)
-    return short == "recién" ? short : "hace \(short)"
-}
-
-// MARK: - Vercel
-
-struct VercelDeployment: Identifiable {
-    let id: String
-    let projectName: String
-    let url: String
-    let state: String        // "READY", "ERROR", "CANCELED"
-    let createdAt: Date
-    let commitMessage: String?
-    let branch: String?
-
-    var isSuccess: Bool { state == "READY" }
-    var statusLabel: String { isSuccess ? "Listo" : (state == "CANCELED" ? "Cancelado" : "Error") }
-    var timeAgo: String {
-        orbexTimeAgo(since: createdAt)
-    }
-}
-
-// MARK: - Resend
-
-struct ResendEmail: Identifiable {
-    let id: String
-    let to: [String]
-    let subject: String
-    let createdAt: Date
-    let lastEvent: String   // "delivered", "bounced", "complained", "opened", etc.
-
-    var recipientShort: String {
-        guard let first = to.first else { return "?" }
-        return first.components(separatedBy: "@").first ?? first
-    }
-    var timeAgo: String {
-        orbexTimeAgo(since: createdAt)
-    }
-    var isDelivered: Bool { lastEvent == "delivered" }
-}
-
-// MARK: - GitHub
-
-struct GitHubStats {
-    let totalRepos: Int
-    let totalStars: Int
 }
 
 // MARK: - Stripe
