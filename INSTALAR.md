@@ -140,6 +140,18 @@ responde hablando: se pone **magenta**, lleva la mano a la oreja mientras te esc
 - Lo sensible (abrir algo fuera de tu lista, acciones con confirmación) **nunca** se hace solo por voz: se abre
   el chat de la isla con el botón para confirmar.
 
+### Orbi responde hablando y "modo inteligente"
+
+- **Voz natural (una sola vez):** `bash scripts/instalar-voz.sh` instala Kokoro (la voz de OpenJarvis, "Dora" en
+  español) en tu Mac. Sin eso, Orbi usa la mejor voz de macOS en español (bajá una "mejorada" en Ajustes del
+  Sistema › Accesibilidad › Contenido leído). Configuración › **Voz de Orbi**: motor, voz, velocidad, "Probar".
+- **Charla:** "Orbi, hola" → "¡Hola! ¿Cómo estás?". Después de responder te sigue escuchando 6 s sin repetir el
+  nombre. "Orbi, pará" la calla.
+- **"Orbi, activar modo inteligente"**: se despliega el panel grande (cara de Orbi, conversación, memoria,
+  acciones, micrófono). "Orbi, desactivar modo inteligente" o Esc lo cierra.
+- **Si no se activa con el nombre:** Configuración › Voz → prendé **Siempre atento**; mirá "Lo que escucho
+  ahora" y, si entiende otra palabra, tocá "Usar «…» como nombre".
+
 ## Problemas comunes
 
 | Problema | Solución |

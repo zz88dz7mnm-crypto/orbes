@@ -22,7 +22,10 @@ struct VozSettingsView: View {
         ("Orbex, anotá comprar pan", "nota"),
         ("Orbex, recordame a las 6 llamar a mamá", "recordatorio"),
         ("Orbex, modo reloj", "reloj flotante"),
-        ("Orbex, ¿qué es un agujero negro?", "se lo pregunta a Claude"),
+        ("Orbex, ¿qué es un agujero negro?", "te contesta hablando (Claude)"),
+        ("Orbi, hola", "“¡Hola! ¿Cómo estás?”"),
+        ("Orbi, activá el modo inteligente", "panel grande con la conversación"),
+        ("Orbi, pará", "se calla"),
         ("Orbex… cancelá", "no hace nada"),
     ]
 
@@ -31,7 +34,7 @@ struct VozSettingsView: View {
             Section {
                 Toggle("Hablarle a ORBEX", isOn: $enabled)
                     .onChange(of: enabled) { _, _ in voice.settingsDidChange() }
-                SettingsFootnote(text: "Le decís \"Orbex, …\" y lo hace, sin contestarte hablando: abre apps, pone timers, anota, te recuerda cosas o le pregunta a Claude. Mientras te escucha se pone magenta y pone la mano en la oreja.",
+                SettingsFootnote(text: "Le decís \"Orbex, …\" y lo hace y te contesta hablando: abre apps, pone timers, anota, te recuerda cosas o charla con vos (con Claude). Después de responder se queda escuchando unos segundos por si seguís, sin repetir el nombre. Mientras te escucha se pone magenta y pone la mano en la oreja.",
                                  symbol: "waveform")
                 if enabled && !voice.permissionsGranted {
                     SettingsFootnote(text: "La primera vez, macOS te va a pedir permiso para el micrófono y para el reconocimiento de voz. El audio se procesa en tu Mac: no se graba ni sale a internet.",
@@ -48,6 +51,13 @@ struct VozSettingsView: View {
             }
 
             Section("Cómo lo activás") {
+                if enabled && !alwaysListening {
+                    Label("Para que responda a su nombre, prendé Siempre atento.", systemImage: "ear.trianglebadge.exclamationmark")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 4)
+                }
                 Toggle("Siempre atento a su nombre", isOn: $alwaysListening)
                     .onChange(of: alwaysListening) { _, _ in voice.settingsDidChange() }
                     .disabled(!enabled)
@@ -58,6 +68,23 @@ struct VozSettingsView: View {
                     .disabled(!enabled || !alwaysListening)
                 if voice.pausedForPower && alwaysListening && enabled {
                     SettingsFootnote(text: "En pausa: la Mac está en bajo consumo. El atajo sigue andando.", symbol: "battery.25")
+                }
+                if enabled && alwaysListening && voice.phase == .waitingWakeWord {
+                    LabeledContent("Lo que escucho ahora") {
+                        Text(voice.waitingText.isEmpty ? "…" : "“\(voice.waitingText)”")
+                            .foregroundStyle(voice.waitingText.isEmpty ? Color.secondary : Color.primary)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(3)
+                    }
+                    if let candidate = voice.nameCandidate {
+                        Button("Usar «\(candidate)» como nombre") {
+                            voice.addExtraName(candidate)
+                            extraNames = VoiceSettings.extraNames.joined(separator: ", ")
+                        }
+                        .disabled(VoiceSettings.extraNames.contains { $0.caseInsensitiveCompare(candidate) == .orderedSame })
+                        SettingsFootnote(text: "Si decís \"Orbex\" y acá aparece otra palabra, tocá el botón: ORBEX va a responder también a esa.",
+                                         symbol: "wand.and.stars")
+                    }
                 }
 
                 Toggle("Atajo de teclado para hablarle", isOn: $pushToTalk)
@@ -138,7 +165,7 @@ struct VozSettingsView: View {
                 }
                 TextField("Nombres extra (separados por coma)", text: $extraNames, prompt: Text("Jarvis, Robotito"))
                     .onSubmit { voice.settingsDidChange() }
-                SettingsFootnote(text: "Una palabra por nombre. El nombre va al principio: \"Orbi, poné un timer\" sí; \"poné un timer, Orbi\" no.")
+                SettingsFootnote(text: "Una palabra por nombre. Decí el nombre y después el pedido: \"Orbi, poné un timer\".")
                 Picker("Idioma", selection: $localeID) {
                     ForEach(VoiceSettings.languages) { lang in
                         Text(lang.name).tag(lang.id)
@@ -158,7 +185,7 @@ struct VozSettingsView: View {
                         Text("“\(Self.examples[i].0)”")
                     }
                 }
-                SettingsFootnote(text: "Lo que no es un comando de ORBEX va al chat con Claude. Si tenés prendidas las herramientas de Claude, el pedido queda escrito en el chat y lo mandás vos.")
+                SettingsFootnote(text: "Lo que no es un comando de ORBEX se lo pregunta a Claude y Orbi te contesta corto, hablando (sin herramientas: para tareas con archivos usá el chat de la isla). Lo que pide confirmación se confirma con un clic en la isla.")
             }
 
             Section("Privacidad") {
