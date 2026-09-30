@@ -19,7 +19,8 @@ extension Notification.Name {
 }
 
 /// Director de la personalidad: observa el sistema (input reciente, teclas, cambio de app) y aplica
-/// lo que decide `PersonalityBrain` (OrbexCore): texto del encabezado, parpadeos, emotes y miradas.
+/// lo que decide `PersonalityBrain` (OrbexCore): parpadeos, emotes y miradas. La frase (`headerLine`)
+/// ya NO se muestra en la isla: el centro del encabezado cae debajo del notch y de la cámara.
 ///
 /// Sin permisos: `CGEventSource.secondsSinceLastEventType` solo dice *cuándo* hubo input, no qué.
 /// Bajo consumo: un timer de un disparo que se re-arma cada 2 s (5 s con la isla oculta, 8 s en
@@ -28,7 +29,8 @@ extension Notification.Name {
 final class PersonalityDirector: ObservableObject {
     static let shared = PersonalityDirector()
 
-    /// Frase actual para el encabezado de la isla.
+    /// Frase actual del cerebro de personalidad. No se dibuja en la isla (la franja del notch queda
+    /// vacía); queda por si otra vista la quiere mostrar en un lugar visible.
     @Published private(set) var headerLine: String = ""
 
     private static let stateKey = "orbex.personality.state"

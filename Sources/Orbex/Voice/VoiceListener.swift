@@ -47,8 +47,15 @@ final class VoiceListener {
 
     // MARK: - Salidas (siempre en el hilo principal)
 
-    /// Texto de la tarea actual (acumulado desde que empezó) y si es el resultado final.
-    var onText: ((String, Bool) -> Void)?
+    /// Lo que se oyó: texto de la tarea actual (acumulado desde que empezó), si es final y de qué tarea es.
+    struct Heard {
+        let text: String
+        let isFinal: Bool
+        /// Cambia con cada tarea nueva (renovación, reinicio o `resetTranscript()`).
+        let generation: Int
+    }
+
+    var onText: ((Heard) -> Void)?
     /// Nivel de la voz 0…1 (solo si `wantsLevel`).
     var onLevel: ((CGFloat) -> Void)?
     /// Se paró solo por fallas repetidas (mensaje para mostrar).
@@ -80,7 +87,8 @@ final class VoiceListener {
     private var recognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
-    private var generation = 0
+    /// Tarea actual (ver `Heard.generation`).
+    private(set) var generation = 0
     private var config: Config?
     private var taskStartedAt = Date()
     private var lastTextAt = Date.distantPast
@@ -177,13 +185,13 @@ final class VoiceListener {
     private func observeConfigurationChanges() {
         if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
         configObserver = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange,
-                                                                object: engine, queue: .main) { _ in
-            MainActor.assumeIsolated { VoiceController.shared.listenerNeedsEngineRestart() }
+                                                                object: engine, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.restartEngineSoon() }
         }
     }
 
     /// Rearma el motor después de un cambio de dispositivo (con una pausa corta, llegan en ráfaga).
-    func restartEngineSoon() {
+    private func restartEngineSoon() {
         guard isRunning else { return }
         engineRestartWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
@@ -220,7 +228,8 @@ final class VoiceListener {
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
         req.requiresOnDeviceRecognition = isOnDevice
-        req.addsPunctuation = false
+        // Con puntuación, "…¿viste? Orbex, abrí Spotify" separa la oración y el nombre queda al principio.
+        req.addsPunctuation = true
         req.contextualStrings = config.contextualStrings
         request = req
         box.setRequest(req)
@@ -255,15 +264,20 @@ final class VoiceListener {
         if let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             failures = 0
             lastTextAt = Date()
-            onText?(text, isFinal)
+            onText?(Heard(text: text, isFinal: isFinal, generation: gen))
         }
         guard isFinal || errorCode != nil else { return }
 
-        // La tarea terminó (final, silencio largo o error): arrancar otra.
-        if let errorCode, !Self.isBenign(code: errorCode, domain: errorDomain) {
+        // La tarea terminó (final, silencio largo o error): arrancar otra. Mientras tanto no se le
+        // manda audio a un pedido terminado.
+        box.setRequest(nil)
+        let quickEnd = Date().timeIntervalSince(taskStartedAt) < 2 && lastTextAt < taskStartedAt
+        let benign = errorCode.map { Self.isBenign(code: $0, domain: errorDomain) } ?? true
+        if !benign || quickEnd {
+            // Un error de verdad, o tareas que mueren apenas nacen (evita un bucle que gaste CPU).
             failures += 1
-            NSLog("ORBEX voz: la tarea de reconocimiento falló (%@ %ld), intento %ld.",
-                  errorDomain ?? "?", errorCode, failures)
+            NSLog("ORBEX voz: la tarea de reconocimiento terminó mal (%@ %ld), intento %ld.",
+                  errorDomain ?? "-", errorCode ?? 0, failures)
             if failures >= Self.maxFailures {
                 fail("El reconocimiento de voz falló varias veces seguidas. Lo apagué; probá de nuevo desde Configuración › Voz.")
                 return
@@ -293,15 +307,15 @@ final class VoiceListener {
     /// Renueva la tarea cada ~50 s (si nadie está hablando en ese momento), con tope duro.
     private func startRotationTimer() {
         rotationTimer?.invalidate()
-        let timer = Timer(timeInterval: 5, repeats: true) { _ in
-            MainActor.assumeIsolated { VoiceController.shared.listenerRotationTick() }
+        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.rotateIfDue() }
         }
         timer.tolerance = 1.5
         RunLoop.main.add(timer, forMode: .common)
         rotationTimer = timer
     }
 
-    func rotateIfDue() {
+    private func rotateIfDue() {
         guard isRunning else { return }
         let age = Date().timeIntervalSince(taskStartedAt)
         let quiet = Date().timeIntervalSince(lastTextAt) > 2
@@ -325,34 +339,53 @@ final class VoiceListener {
     /// Elige el reconocedor: el idioma pedido (o, en automático, el de la Mac si es español y si no
     /// es-AR, es-US, es-MX, es-ES), preferentemente con modelo en el dispositivo.
     private static func makeRecognizer(_ config: Config) throws -> (SFSpeechRecognizer, Bool, String) {
-        var candidates: [String] = []
-        if config.localeID == "auto" {
-            let current = Locale.current
-            if current.language.languageCode?.identifier == "es" {
-                candidates.append(current.identifier.replacingOccurrences(of: "_", with: "-"))
-            }
-            candidates += ["es-AR", "es-US", "es-MX", "es-ES", "es-419"]
-        } else {
-            candidates = [config.localeID]
-        }
-        var seen = Set<String>()
-        candidates = candidates.filter { seen.insert($0).inserted }
-
         var available: [(SFSpeechRecognizer, String)] = []
-        for id in candidates {
+        var onDeviceButBusy = false
+        for id in candidates(for: config.localeID) {
             guard let rec = SFSpeechRecognizer(locale: Locale(identifier: id)) else { continue }
             available.append((rec, id))
             if rec.supportsOnDeviceRecognition {
-                guard rec.isAvailable else { throw StartError.recognizerUnavailable }
-                return (rec, true, id)
+                if rec.isAvailable { return (rec, true, id) }
+                onDeviceButBusy = true
             }
         }
         guard let first = available.first else { throw StartError.noSpanishRecognizer }
+        if onDeviceButBusy { throw StartError.recognizerUnavailable }
         guard config.allowCloud else {
             throw StartError.needsOnDeviceModel(localeName: displayName(first.1))
         }
-        guard first.0.isAvailable else { throw StartError.recognizerUnavailable }
-        return (first.0, false, first.1)
+        guard let online = available.first(where: { $0.0.isAvailable }) else {
+            throw StartError.recognizerUnavailable
+        }
+        return (online.0, false, online.1)
+    }
+
+    /// Idiomas a probar, en orden: el pedido, o (automático) el de la Mac si es español y los demás.
+    private static func candidates(for localeID: String) -> [String] {
+        var list: [String] = []
+        if localeID == "auto" {
+            let current = Locale.current
+            if current.language.languageCode?.identifier == "es" {
+                list.append(current.identifier.replacingOccurrences(of: "_", with: "-"))
+            }
+            list += ["es-AR", "es-US", "es-MX", "es-ES", "es-419"]
+        } else {
+            list = [localeID]
+        }
+        var seen = Set<String>()
+        return list.filter { seen.insert($0).inserted }
+    }
+
+    /// Para Configuración (sin abrir el micrófono ni pedir permisos): qué idioma se usaría y si tiene
+    /// modelo en la Mac. `nil` = no hay reconocimiento en español.
+    static func probe(localeID: String) -> (id: String, onDevice: Bool)? {
+        var firstAvailable: String?
+        for id in candidates(for: localeID) {
+            guard let rec = SFSpeechRecognizer(locale: Locale(identifier: id)) else { continue }
+            if rec.supportsOnDeviceRecognition { return (id, true) }
+            if firstAvailable == nil { firstAvailable = id }
+        }
+        return firstAvailable.map { ($0, false) }
     }
 
     static func displayName(_ id: String) -> String {

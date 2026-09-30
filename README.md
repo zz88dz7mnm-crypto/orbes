@@ -39,7 +39,7 @@ transforma con resorte entre oculta, asomada, pastillas, abierta, asistente y re
 - **Caricia:** dejá el mouse quieto sobre ORBEX y se derrite de gusto.
 - **Cosquillas:** clic sobre ORBEX; tres clics rápidos y se marea.
 - **Arrastrar sobre una ventana:** agarralo del notch y soltalo sobre cualquier ventana; ORBEX toma su título como contexto para el chat.
-- **Soltar un archivo** en el notch: se lo "traga" y te pregunta qué hacer (adjuntarlo al chat, mandarlo por mail…).
+- **Soltar un archivo** en el notch: se lo "traga" y te pregunta qué hacer con él (preguntarle a Claude sobre el archivo).
 - Personalidad: te saluda por tu nombre según la hora, te extraña, te mira tipear, sigue la app nueva.
 
 **En la isla**
@@ -48,7 +48,7 @@ transforma con resorte entre oculta, asomada, pastillas, abierta, asistente y re
 - **Timers, notas y música** (Spotify / Música, con baile al ritmo).
 - **Reloj flotante** (el notch se convierte en reloj).
 - **Temas:** Liquid Glass, macOS limpio y Y2K, cada uno con sus sonidos sintetizados.
-- **Integraciones** (GitHub, Vercel, Stripe, n8n, Resend, Notion, Cal.com): hasta 4 pastillas, claves en el Keychain.
+- **Integraciones opcionales** (Stripe, Notion, Cal.com): apagadas por defecto; su pastilla aparece solo si la prendés. Claves en el Keychain.
 
 | Atajo | Acción |
 |---|---|

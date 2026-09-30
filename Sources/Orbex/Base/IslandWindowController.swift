@@ -53,6 +53,8 @@ final class IslandWindowController: NSWindowController {
     // ORBEX: sondeo adaptativo (60 Hz con la isla visible, ~10 Hz oculta).
     private var pollInterval: TimeInterval = 0
     private var escMonitor: Any?
+    /// Clic afuera de la isla abierta → cerrar (monitor global de mouse: no pide Accesibilidad).
+    private var outsideClickMonitor: Any?
     private var placementObservers: [NSObjectProtocol] = []
     private var subscriptions: Set<AnyCancellable> = []
 
@@ -186,6 +188,7 @@ final class IslandWindowController: NSWindowController {
 
         startPolling()
         startKeyMonitor()
+        startOutsideClickMonitor()
         observePlacement()
         wireFSM()
 
@@ -400,18 +403,12 @@ final class IslandWindowController: NSWindowController {
 
     // MARK: - Mode transitions
 
-    private func modeLevel(_ m: IslandMode) -> Int {
-        switch m { case .hidden: return 0; case .compact: return 1; case .expanded: return 2 }
-    }
-
     func setMode(_ mode: IslandMode) {
         let prev = state.mode
         guard mode != prev else { return }
-        let shrinking = modeLevel(mode) < modeLevel(prev)
-        let anim: Animation = shrinking
-            ? .timingCurve(0.45, 0, 0.2, 1, duration: 0.34)
-            : .spring(response: 0.5, dampingFraction: 0.72)
-        withAnimation(anim) { state.mode = mode }
+        // Sin `withAnimation` acá: el morph lo anima UN resorte en `IslandContainer`, con el tamaño
+        // calculado del estado (antes había dos animaciones encimadas y a veces quedaban saltos).
+        state.mode = mode
         if mode == .expanded { SoundEngine.shared.play("open") }
         if prev == .expanded { SoundEngine.shared.play("close"); state.isPinned = false }
     }
@@ -606,6 +603,32 @@ final class IslandWindowController: NSWindowController {
         center.register(id: "custom", keyCode: UInt32(state.hotkeyCode), modifiers: mods) {
             OrbexBridge.shared.openIsland()
         }
+    }
+
+    // MARK: - Clic afuera (ORBEX)
+
+    /// Con la isla abierta, un clic (izquierdo o derecho) fuera de ella la cierra. Es un monitor GLOBAL:
+    /// solo ve los clics que van a OTRAS apps (el escritorio, otra ventana), así que los clics en la isla,
+    /// en Configuración o en el reloj no llegan acá. Los monitores de mouse no piden Accesibilidad.
+    /// Se instala una sola vez.
+    private func startOutsideClickMonitor() {
+        guard outsideClickMonitor == nil else { return }
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            // Los monitores globales se llaman en el hilo principal.
+            MainActor.assumeIsolated { self?.handleOutsideClick() }
+        }
+    }
+
+    private func handleOutsideClick() {
+        guard state.mode == .expanded, !state.isPinned,
+              // Arrastrando a ORBEX hacia una ventana o soltando un archivo: no tocar.
+              !inAttachDrag, attachDragStart == nil, !state.fileDragOver,
+              let panel = window as? IslandPanel else { return }
+        let mouse = NSEvent.mouseLocation
+        let local = CGPoint(x: mouse.x - panel.frame.minX, y: mouse.y - panel.frame.minY)
+        let islandRect = panel.currentIslandFrame(nw: notchW, nh: notchH)
+        guard !islandRect.insetBy(dx: -6, dy: -6).contains(local) else { return }
+        collapse()
     }
 
     // MARK: - Drag ghost window (ORBEX follows cursor during drag)
@@ -862,17 +885,9 @@ final class IslandWindowController: NSWindowController {
         let s = AppState.shared
         let panelH = window?.frame.height ?? 320
         let panelW = window?.frame.width  ?? 720
-        let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,
-                                            progress: s.uploadProgress, nw: notchW, nh: notchH)
-        // Chat view resizes dynamically — must match IslandContainer.chatPromptHeight
-        let islandH: CGFloat
-        if s.mode == .expanded && s.view == .prompt {
-            let base: CGFloat = 240
-            let perMsg: CGFloat = 40
-            islandH = min(300, base + CGFloat(s.chatMessageCount) * perMsg)
-        } else {
-            islandH = fixedH
-        }
+        // Mismo tamaño que dibuja `IslandContainer` (incluye el alto del chat).
+        let (islandW, islandH) = islandSize(mode: s.mode, view: s.view, nw: notchW, nh: notchH,
+                                            chatMessages: s.chatMessageCount)
         let islandMinX = (panelW - islandW) / 2
         let (cx, cy, diameter, _) = botPosition(mode: s.mode, view: s.view,
                                                   islandW: islandW, islandH: islandH,
@@ -908,18 +923,11 @@ final class IslandPanel: NSPanel {
         return frameRect
     }
 
-    func currentIslandFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
+    /// Rectángulo de la isla en coordenadas del panel: el mismo tamaño que dibuja `IslandContainer`.
+    @MainActor func currentIslandFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
         let s = AppState.shared
-        let (w, fixedH) = islandSize(mode: s.mode, view: s.view,
-                                      progress: s.uploadProgress, nw: nw, nh: nh)
-        let h: CGFloat
-        if s.mode == .expanded && s.view == .prompt {
-            let base: CGFloat = 240
-            let perMsg: CGFloat = 40
-            h = min(300, base + CGFloat(s.chatMessageCount) * perMsg)
-        } else {
-            h = fixedH
-        }
+        let (w, h) = islandSize(mode: s.mode, view: s.view, nw: nw, nh: nh,
+                                chatMessages: s.chatMessageCount)
         return CGRect(x: (frame.width - w) / 2, y: frame.height - h, width: w, height: h)
     }
 }
@@ -967,17 +975,25 @@ extension Notification.Name {
     static let greetingInterrupt = Notification.Name("orbex.island.greetingInterrupt")
 }
 
-// MARK: - islandSize (takes real notch dimensions)
+// MARK: - islandSize (medida en vivo del notch) — ÚNICA fuente del tamaño de la isla
 
+/// Tamaño de la isla para un estado. Lo usan la forma y el contenido (`IslandContainer` vía
+/// `IslandGeometry`), el área que recibe clics (`IslandPanel.currentIslandFrame`) y el hit-test de
+/// ORBEX, así nunca se desincronizan. El chat (`prompt`) crece con la conversación: `chatMessages`
+/// da su alto real. `progress` queda por compatibilidad (no cambia el tamaño).
 func islandSize(mode: IslandMode, view: IslandView,
                 progress: Double = 0,
                 nw: CGFloat = IslandConst.notchWidth,
-                nh: CGFloat = IslandConst.notchHeight) -> (CGFloat, CGFloat) {
+                nh: CGFloat = IslandConst.notchHeight,
+                chatMessages: Int = 0) -> (CGFloat, CGFloat) {
     switch mode {
     case .hidden:   return (nw, nh)
     case .compact:  return (nw + 160, nh)
     case .expanded:
-        let layout = IslandConst.viewLayouts[view]!
-        return (IslandConst.expandedWidth, layout.height)
+        if view == .prompt {
+            return (IslandConst.expandedWidth, IslandConst.chatHeight(messages: chatMessages))
+        }
+        let height = IslandConst.viewLayouts[view]?.height ?? IslandConst.viewLayouts[.overview]!.height
+        return (IslandConst.expandedWidth, height)
     }
 }

@@ -40,7 +40,7 @@
   - `attach(_ IslandWindowController)`, `updatePlacement()`.
   - `openIsland(_ view: IslandView? = nil)`, `close()`, `reveal()`, `show(page: IslandPage)`,
     `toggleAssistant()`, `toggleClock()`.
-  - `showNote(_ text:, symbol:)`: aviso corto en la vista `note`; nunca tapa permiso/pregunta/mail/chat.
+  - `showNote(_ text:, symbol:)`: aviso corto en la vista `note`; nunca tapa permiso/pregunta/chat.
   - `setAmbient(working:attention:sleepy:)` → `AppState.ambientState`; `react(_ OrbexReaction)` → emotes.
   - `AppState.autoCloseInterval` → `fsm.homeToPetitDelay` (mín. 5 s): "cerrarse sola" de Configuración › Isla.
 - `SessionsBridge.shared` (`Sessions/SessionsBridge.swift`, `@MainActor`): sesiones de Claude Code → pastillas.
@@ -52,7 +52,7 @@
   - Consultas: `session(forTask:)`, `endedSession(for:)`, `task(forSession:)`; estáticos `pillName`,
     `botState`, `badge(for:)`, `color(for:)`, `durationText`, `lastPrompt`, `lastWork`.
 - `PersonalityDirector.shared` (`Base/PersonalityDirector.swift`, `@MainActor`): `start()`/`stop()`;
-  `@Published headerLine` (encabezado de la isla). Aplica lo que decide `PersonalityBrain` (OrbexCore)
+  `@Published headerLine` (ya no se dibuja: la franja del notch queda vacía). Aplica lo que decide `PersonalityBrain` (OrbexCore)
   posteando `.triggerEmote`, `.botBlink`, `.botSetTgEs` y `.personalityGlance`. Sin permisos; timer de un
   disparo cada 2 s (5 s oculta, 8 s en bajo consumo).
 - Notificaciones del personaje:
@@ -64,7 +64,7 @@
   - `.openFullSettings` — abre la ventana de Configuración (la vista `settings` de la isla la postea).
 - `AppState.shared` (base): `mode`, `view`, `tasks`, `focusId`, `pendingApproval`, `noteMessage`,
   `noteSymbol`, `ambientState`, `soundEnabled`/`soundVolume` (sonido de la isla, en Configuración › Sonidos),
-  `autoCloseInterval`, `activeIntegrations` (máx. 4) + `toggleIntegration(_:)`.
+  `autoCloseInterval`, `activeIntegrations` (opcionales prendidas; por defecto ninguna) + `toggleIntegration(_:)`.
 - Motor del personaje (`BotEngine`): API pública de Coucou intacta (`setState`, `triggerEmote`, `slap`,
   `blink`, `gulp`, `greet`, `anim`, `lookX/lookY`, `tgEs`, `morph`, `slotH*`, `bodyColor`, `isMini`, `draw…`),
   más `tickle()`.
@@ -75,6 +75,21 @@
     (`SoundEngine.eventSounds` → `OrbexSound`).
   - `play(_ s: OrbexSound)` — sonidos de ORBEX por tema; `preview(_:theme:)` para Configuración.
 - Configuración: `SettingsRootView` (secciones), `IntegrationsSettingsView` (`Base/SettingsView.swift`):
-  claves solo en `KeychainStore` (`resend-api-key`, `resend-from`, `n8n-url`, `n8n-api-key`, `vercel-token`,
-  `github-token`, `stripe-api-key`, `calcom-api-key`, `notion-api-key`), filtros `vercelProjectFilter` /
-  `n8nWorkflowFilter`. Atajos fijos en `System/HotKeys.swift` (⌃⌥O/A/C/,).
+  integraciones opcionales Stripe, Cal.com y Notion (apagadas por defecto; su pastilla solo aparece si se
+  prenden), claves solo en `KeychainStore` (`stripe-api-key`, `calcom-api-key`, `notion-api-key`). Resend,
+  n8n, GitHub y Vercel se sacaron (Etapa 3), junto con la vista `mail`. Atajos fijos en
+  `System/HotKeys.swift` (⌃⌥O/A/C/,).
+
+## Etapa 3 — isla (V1/V2)
+- **Tamaño de la isla: una sola fuente.** `islandSize(mode:view:progress:nw:nh:chatMessages:)`
+  (`Base/IslandWindowController.swift`) + `IslandConst.chatHeight(messages:)`. La usan la forma y el
+  contenido (`IslandGeometry` en `IslandContainer`), el área de clic (`IslandPanel.currentIslandFrame`) y el
+  hit-test de ORBEX. Sin `@State` de tamaño: un solo resorte (`.animation(_:value: IslandGeometry)`) anima el
+  morph; `setMode` ya no usa `withAnimation`. El contenido va recortado por la misma forma animada y entra con
+  un fundido corto.
+- **Encabezado:** la franja central (ancho del notch medido `state.notchWidth` + 12 pt por lado) queda vacía
+  en todas las vistas; pestañas a la izquierda (se angostan si el notch es ancho), íconos a la derecha.
+- **Isla compacta:** solo ORBEX a la izquierda; nada a la derecha del notch (sin mini-ORBEX ni textos).
+- **Clic afuera:** monitor global de `leftMouseDown`/`rightMouseDown` en `IslandWindowController`: con la isla
+  abierta, sin fijar (`isPinned`), sin arrastre de ORBEX ni de archivo, un clic fuera del rectángulo de la
+  isla llama `collapse()`.

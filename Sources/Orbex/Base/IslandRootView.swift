@@ -22,147 +22,130 @@ struct IslandRootView: View {
 }
 
 // MARK: - Island container
+//
+// Una sola fuente de verdad para la forma: el tamaño y las esquinas salen del estado (`mode`, `view`,
+// largo del chat y medida en vivo del notch) vía `IslandGeometry`, y un solo resorte los anima
+// (`.animation(_:value:)` sobre la geometría). No hay `@State` de tamaño que pueda quedar a mitad de
+// camino: si el modo cambia rápido de ida y vuelta, el resorte se redirige y siempre termina en el
+// tamaño que corresponde al estado final.
+
+/// Tamaño y esquinas de la isla para el estado actual.
+struct IslandGeometry: Equatable {
+    var width: CGFloat
+    var height: CGFloat
+    var corner: CGFloat
+
+    @MainActor init(state: AppState) {
+        let (w, h) = islandSize(mode: state.mode, view: state.view,
+                                nw: state.notchWidth, nh: state.notchHeight,
+                                chatMessages: state.chatMessageCount)
+        width = w
+        height = h
+        corner = state.mode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
+    }
+
+    var shape: IslandShape {
+        IslandShape(width: width, height: height, cornerRadius: corner, topRadius: 0)
+    }
+}
+
+/// Qué dibuja el interior de la isla (cada caso entra y sale con su fundido).
+private enum IslandContentBranch: Equatable {
+    case empty, greeting, upload, views
+}
 
 struct IslandContainer: View {
     @ObservedObject var state: AppState
-    @State private var islandWidth:  CGFloat = IslandConst.notchWidth
-    @State private var islandHeight: CGFloat = IslandConst.notchHeight
-    @State private var cornerRadius: CGFloat = IslandConst.roundedCorner
-    // topRadius > 0 → convex expanded corners; < 0 → concave ear cutouts
-    @State private var islandTopRadius: CGFloat = 0
-    @State private var greetNotif: Bool = false
 
-    private let openSpring = Animation.spring(response: 0.5, dampingFraction: 0.72)
-    private let closeEase  = Animation.timingCurve(0.45, 0, 0.2, 1, duration: 0.34)
+    /// Abrir, cambiar de vista o crecer el chat: resorte con un poquito de rebote.
+    static let openSpring = Animation.spring(response: 0.5, dampingFraction: 0.72)
+    /// Achicar (a compacta u oculta) o asomarse: resorte sin rebote, así la forma nunca queda más chica
+    /// que el notch ni "late" al llegar.
+    static let settleSpring = Animation.spring(response: 0.34, dampingFraction: 1)
 
-    private var chatPromptHeight: CGFloat {
-        let base: CGFloat = 240
-        let perMsg: CGFloat = 40
-        return min(300, base + CGFloat(state.chatMessageCount) * perMsg)
+    /// El contenido entra con un fundido apenas demorado, cuando la isla ya va abriendo (y siempre
+    /// recortado por la forma: nada queda afuera ni salta durante el morph); se va rápido al cerrar.
+    private static func contentTransition(removal: Double = 0.12) -> AnyTransition {
+        .asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.14)),
+                    removal: .opacity.animation(.easeIn(duration: removal)))
     }
 
-    /// Pixels the content must be pushed down to clear the concave ear transparent area.
-    /// = 0 in expanded mode (no ears), = earRadius in compact/notch mode.
-    private var earOffset: CGFloat { max(0, -islandTopRadius) }
-
     var body: some View {
+        let geo = IslandGeometry(state: state)
+
         // Canvas active during drag-over (.upload), post-drop animation (.uploading),
         // AND choose overlay (.choose) — canvas handles the full sequence through user action.
         // Engine deactivates when user clicks a canvas choose button or navigates away.
         let uploadActive = state.mode == .expanded
             && UploadSequenceEngine.shared.isActive
             && (state.view == .upload || state.view == .uploading || state.view == .choose)
-
         let greetingActive = state.mode == .expanded && state.view == .greeting
+        let branch: IslandContentBranch = state.mode != .expanded ? .empty
+            : greetingActive ? .greeting
+            : uploadActive ? .upload
+            : .views
+
+        let calm = AppModel.shared.effectiveReduceMotion
+        let morph: Animation = calm ? .easeInOut(duration: 0.2)
+            : (state.mode == .expanded ? Self.openSpring : Self.settleSpring)
 
         return ZStack(alignment: .topLeading) {
-            // Black island shape
-            IslandShape(width: islandWidth, height: islandHeight,
-                        cornerRadius: cornerRadius, topRadius: islandTopRadius)
-                .fill(Color.black)
+            // Forma negra
+            geo.shape.fill(Color.black)
 
-            // Content
-            if state.mode == .expanded {
-                if greetingActive {
-                    // Greeting canvas: fixed 640-wide, centered by offset so x=320 aligns with island center
+            // Contenido: siempre recortado por la MISMA forma animada. El contenedor existe en todos los
+            // modos (así su recorte se interpola) y el contenido entra/sale adentro con un fundido.
+            ZStack(alignment: .topLeading) {
+                switch branch {
+                case .greeting:
+                    // Lienzo del saludo: 640 de ancho, x = 320 en el centro de la isla.
                     GreetingCanvasView(state: state)
-                        .frame(width: IslandConst.expandedWidth, height: 150)
-                        .offset(x: (islandWidth - IslandConst.expandedWidth) / 2)
-                        .clipShape(IslandShape(width: islandWidth, height: islandHeight,
-                                              cornerRadius: cornerRadius, topRadius: islandTopRadius))
-                        .transition(.opacity)
-                } else if uploadActive {
+                        .frame(width: IslandConst.expandedWidth, height: geo.height)
+                        .transition(Self.contentTransition(removal: 0.3))
+                case .upload:
                     ZStack(alignment: .topLeading) {
                         UploadCanvasView(state: state)
-                            .frame(width: islandWidth, height: islandHeight)
-                            .clipShape(IslandShape(width: islandWidth, height: islandHeight,
-                                                  cornerRadius: cornerRadius, topRadius: islandTopRadius))
+                            .frame(width: geo.width, height: geo.height)
                         // Header overlaid: canvas CARD_Y=42 aligns exactly with header bottom,
                         // matching normal view proportions (8pt top + 34pt header + card + 10pt bottom).
                         IslandHeader(state: state)
-                            .frame(width: islandWidth, height: 34)
+                            .frame(width: geo.width, height: 34)
                             .offset(y: 8)
                     }
-                    .transition(.opacity)
-                } else {
+                    .transition(Self.contentTransition())
+                case .views:
                     IslandContentView(state: state)
-                        .frame(width: islandWidth, height: islandHeight - earOffset)
-                        .offset(y: earOffset)
-                        .clipShape(IslandShape(width: islandWidth, height: islandHeight,
-                                              cornerRadius: cornerRadius, topRadius: islandTopRadius))
-                        .transition(.opacity)
+                        .frame(width: geo.width, height: geo.height)
+                        .transition(Self.contentTransition())
+                case .empty:
+                    EmptyView()
                 }
             }
+            .animation(.easeInOut(duration: 0.22), value: branch)
+            .frame(width: geo.width, height: geo.height, alignment: .topLeading)
+            .clipShape(geo.shape)
 
             // Single BotPlacement — always alive in the view tree so spring animations
             // fire from the current position (e.g. choose at 60,101) when canvas deactivates.
             // Hidden during upload canvas or greeting (both draw their own ORBEX).
-            BotPlacement(state: state, islandW: islandWidth, islandH: islandHeight)
+            BotPlacement(state: state, islandW: geo.width, islandH: geo.height)
                 .opacity(uploadActive || greetingActive ? 0 : 1)
                 .animation(.easeInOut(duration: 0.25), value: uploadActive || greetingActive)
 
-            CountdownBar(state: state, islandW: islandWidth)
-
-            Group {
-                if state.mode == .compact {
-                    CompactMiniGrid(state: state)
-                        .position(x: islandWidth - 40, y: islandHeight / 2)
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.25), value: state.mode == .compact)
+            CountdownBar(state: state, islandW: geo.width)
+            // Isla compacta: solo ORBEX a la izquierda; a la derecha del notch no se dibuja nada.
         }
-        .frame(width: islandWidth, height: islandHeight, alignment: .topLeading)
-        .onChange(of: state.mode) { oldMode, newMode in
-            let shrinking = modeOrder(newMode) < modeOrder(oldMode)
-            let anim = shrinking ? closeEase : openSpring
-            let (w, h) = islandSize(mode: newMode, view: state.view,
-                                    progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
-            let cr  = newMode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
-            let tr: CGFloat = 0
-            withAnimation(anim) {
-                islandWidth      = w
-                islandHeight     = (newMode == .expanded && state.view == .prompt) ? chatPromptHeight : h
-                cornerRadius     = cr
-                islandTopRadius  = tr
-            }
-        }
+        .frame(width: geo.width, height: geo.height, alignment: .topLeading)
+        // Un solo resorte para la forma (tamaño + esquinas), venga el cambio de donde venga.
+        .animation(morph, value: geo)
         .onChange(of: state.view) { _, newView in
+            // Salir del flujo de subir archivo apaga su motor.
             guard state.mode == .expanded else { return }
-            // Deactivate engine if user navigates outside the upload flow
             let uploadViews: Set<IslandView> = [.upload, .uploading, .choose]
             if UploadSequenceEngine.shared.isActive && !uploadViews.contains(newView) {
                 UploadSequenceEngine.shared.deactivate()
             }
-            let (w, h) = islandSize(mode: .expanded, view: newView,
-                                    progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
-            withAnimation(openSpring) {
-                islandWidth  = w
-                islandHeight = newView == .prompt ? chatPromptHeight : h
-            }
         }
-        .onChange(of: state.chatMessageCount) { _, _ in
-            guard state.mode == .expanded, state.view == .prompt else { return }
-            withAnimation(openSpring) { islandHeight = chatPromptHeight }
-        }
-        .onAppear {
-            let (w, h) = islandSize(mode: state.mode, view: state.view,
-                                    progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
-            islandWidth      = w
-            islandHeight     = state.view == .prompt ? chatPromptHeight : h
-            cornerRadius     = state.mode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
-            islandTopRadius  = 0
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .botGreet)) { _ in
-            greetNotif.toggle()
-        }
-    }
-
-    private func modeOrder(_ m: IslandMode) -> Int {
-        switch m { case .hidden: return 0; case .compact: return 1; case .expanded: return 2 }
     }
 }
 
@@ -170,7 +153,7 @@ struct IslandContainer: View {
 //
 // topRadius > 0  → convex rounded top corners (expanded mode)
 // topRadius < 0  → concave ear cutouts, |topRadius| = ear radius (compact/notch mode)
-// topRadius = 0  → sharp top corners (transient during animation)
+// topRadius = 0  → sharp top corners, flush with the top of the screen (what the island uses now)
 
 struct IslandShape: Shape {
     var width: CGFloat
@@ -189,7 +172,8 @@ struct IslandShape: Shape {
     }
 
     func path(in rect: CGRect) -> Path {
-        let cr = max(0, cornerRadius)
+        // Radios acotados al tamaño: con un notch bajo o a mitad del morph los arcos nunca se cruzan.
+        let cr = max(0, min(cornerRadius, width / 2, height / 2))
         var p  = Path()
 
         if topRadius >= 0 {
@@ -217,7 +201,7 @@ struct IslandShape: Shape {
                      startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
         } else {
             // ── Concave ear cutouts (compact / notch) ─────────────────────────
-            let er = -topRadius   // positive ear radius
+            let er = min(-topRadius, width / 2, height)   // positive ear radius
             p.move(to: CGPoint(x: 0, y: 0))
             // Top-left ear
             p.addArc(center: CGPoint(x: 0, y: er), radius: er,
@@ -429,10 +413,10 @@ struct IslandContentView: View {
                 ForEach(IslandView.allCases, id: \.self) { v in
                     let active = state.view == v
                     // Views that fill available height instead of the fixed 98pt content frame:
-                    // chat (prompt) is always flexible; mail is flexible only when active so
-                    // it doesn't push the ZStack taller when inactive.
+                    // chat (prompt) is always flexible; utilities only when active so they don't
+                    // push the ZStack taller when inactive.
                     let isUtility = Self.utilityViews.contains(v)
-                    let isTall = v == .prompt || (v == .mail && active) || (isUtility && active)
+                    let isTall = v == .prompt || (isUtility && active)
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
                         : .easeIn(duration: 0.16)
@@ -474,76 +458,93 @@ struct IslandContentView: View {
 }
 
 // MARK: - Island header (tabs + icons)
+//
+// La franja del notch (su ancho medido en vivo + un margen a cada lado) queda SIEMPRE vacía: ahí están
+// la cámara y el borde del notch, así que cualquier texto o ícono se vería cortado. Las pestañas van a
+// la izquierda y los íconos a la derecha, cada grupo dentro de su costado; si el notch es ancho, las
+// pestañas se angostan antes de meterse debajo.
 
 struct IslandHeader: View {
     @ObservedObject var state: AppState
-    @ObservedObject private var personality = PersonalityDirector.shared
+
+    /// Margen libre a cada lado del notch.
+    static let notchMargin: CGFloat = 12
+
+    private static let tabCount: CGFloat = 6
+    private static let tabSpacing: CGFloat = 5
+    private static let leading: CGFloat = 14
+    private static let trailing: CGFloat = 16
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Left: tab capsules
-            HStack(spacing: 5) {
-                TabButton(icon: "house.fill", view: .overview, state: state)
-                TabButton(icon: "bubble.left.fill", view: .prompt, state: state, preAction: {
-                    #if !APPSTORE
-                    if state.promptContext == nil {
-                        state.promptContext = WindowContextCapture.captureActive(from: state.lastExternalApp)
-                    }
-                    #endif
-                })
-                TabButton(icon: "plus", view: .upload, state: state)
-                TabButton(icon: "timer", view: .timers, state: state)
-                TabButton(icon: "note.text", view: .notes, state: state)
-                TabButton(icon: "music.note", view: .music, state: state)
+        GeometryReader { geo in
+            let side = max(0, (geo.size.width - state.notchWidth) / 2 - Self.notchMargin)
+            let fit = (side - Self.leading - Self.tabSpacing * (Self.tabCount - 1)) / Self.tabCount
+            let tabWidth = min(30, max(20, fit))
+            HStack(spacing: 0) {
+                tabs(width: tabWidth)
+                    .padding(.leading, Self.leading)
+                    .frame(width: side, alignment: .leading)
+                // Franja del notch: vacía a propósito.
+                Spacer(minLength: 0)
+                icons
+                    .padding(.trailing, Self.trailing)
+                    .frame(width: side, alignment: .trailing)
             }
-            .padding(.leading, 14)
-
-            // Centro: frase de ORBEX (saludo, racha, "¡Te extrañé!", frases rotativas).
-            Spacer(minLength: 8)
-            if !personality.headerLine.isEmpty {
-                Text(personality.headerLine)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(Color(hex: "#8E939C"))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .id(personality.headerLine)
-                    .transition(.opacity)
-                    .accessibilityLabel(personality.headerLine)
-            }
-            Spacer(minLength: 8)
-
-            // Right: action icons
-            HStack(spacing: 14) {
-                Button(action: { OrbexBus.perform("clock") }) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "#8E939C"))
-                }
-                .buttonStyle(.plain)
-                .help("Pasar a reloj")
-
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        state.view = .settings
-                    }
-                }) {
-                    Image(systemName: state.view == .settings ? "gearshape.fill" : "gearshape")
-                        .font(.system(size: 14))
-                        .foregroundColor(state.view == .settings ? Color(hex: "#F5F6F8") : Color(hex: "#8E939C"))
-                }
-                .buttonStyle(.plain)
-
-                Button(action: { state.soundEnabled.toggle() }) {
-                    Image(systemName: state.soundEnabled ? "speaker.wave.2" : "speaker.slash")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "#8E939C"))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.trailing, 16)
+            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .frame(maxHeight: .infinity)
-        .animation(.easeInOut(duration: 0.35), value: personality.headerLine)
+    }
+
+    // Left: tab capsules
+    private func tabs(width: CGFloat) -> some View {
+        HStack(spacing: Self.tabSpacing) {
+            TabButton(icon: "house.fill", view: .overview, state: state, width: width)
+            TabButton(icon: "bubble.left.fill", view: .prompt, state: state, width: width, preAction: {
+                #if !APPSTORE
+                if state.promptContext == nil {
+                    state.promptContext = WindowContextCapture.captureActive(from: state.lastExternalApp)
+                }
+                #endif
+            })
+            TabButton(icon: "plus", view: .upload, state: state, width: width)
+            TabButton(icon: "timer", view: .timers, state: state, width: width)
+            TabButton(icon: "note.text", view: .notes, state: state, width: width)
+            TabButton(icon: "music.note", view: .music, state: state, width: width)
+        }
+        .fixedSize()
+    }
+
+    // Right: action icons
+    private var icons: some View {
+        HStack(spacing: 14) {
+            Button(action: { OrbexBus.perform("clock") }) {
+                Image(systemName: "clock")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "#8E939C"))
+            }
+            .buttonStyle(.plain)
+            .help("Pasar a reloj")
+
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    state.view = .settings
+                }
+            }) {
+                Image(systemName: state.view == .settings ? "gearshape.fill" : "gearshape")
+                    .font(.system(size: 14))
+                    .foregroundColor(state.view == .settings ? Color(hex: "#F5F6F8") : Color(hex: "#8E939C"))
+            }
+            .buttonStyle(.plain)
+            .help("Ajustes rápidos")
+
+            Button(action: { state.soundEnabled.toggle() }) {
+                Image(systemName: state.soundEnabled ? "speaker.wave.2" : "speaker.slash")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "#8E939C"))
+            }
+            .buttonStyle(.plain)
+            .help(state.soundEnabled ? "Silenciar" : "Activar el sonido")
+        }
+        .fixedSize()
     }
 }
 
@@ -551,6 +552,7 @@ struct TabButton: View {
     let icon: String
     let view: IslandView
     @ObservedObject var state: AppState
+    var width: CGFloat = 30
     var preAction: (() -> Void)? = nil
     @State private var isHovered = false
 
@@ -569,7 +571,7 @@ struct TabButton: View {
             Image(systemName: icon)
                 .font(.system(size: 13))
                 .foregroundColor(isOn ? Color(hex: "#F5F6F8") : (isHovered ? Color(hex: "#B0B5BE") : Color(hex: "#8E939C")))
-                .frame(width: 30, height: 22)
+                .frame(width: width, height: 22)
                 .background(
                     isOn ? Color(hex: "#1D1F23") :
                     isHovered ? Color.white.opacity(0.07) : Color.clear
@@ -578,28 +580,6 @@ struct TabButton: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-    }
-}
-
-// MARK: - Compact mini ORBEX grid (2×2 to the right of the notch)
-
-struct CompactMiniGrid: View {
-    @ObservedObject var state: AppState
-
-    private var others: [AgentTask] {
-        Array(state.tasks.filter { $0.id != state.focusId }.prefix(4))
-    }
-
-    var body: some View {
-        let cols = [GridItem(.fixed(12), spacing: 4), GridItem(.fixed(12), spacing: 4)]
-        LazyVGrid(columns: cols, spacing: 4) {
-            ForEach(others) { task in
-                MiniBotCanvasView(task: task)
-                    .frame(width: 12 / 0.6, height: 12 / 0.6)
-                    .frame(width: 12, height: 12, alignment: .center)
-            }
-        }
-        .frame(width: 28, height: 28)
     }
 }
 

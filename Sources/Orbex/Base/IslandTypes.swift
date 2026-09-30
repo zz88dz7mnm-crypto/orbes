@@ -94,6 +94,11 @@ enum IslandConst {
     static let roundedCorner: CGFloat = 14    // hidden/peek/compact
     static let expandedCorner: CGFloat = 22
 
+    /// Alto del chat (`prompt`): crece 40 pt por mensaje, de 240 a 300.
+    static func chatHeight(messages: Int) -> CGFloat {
+        min(300, 240 + CGFloat(max(0, messages)) * 40)
+    }
+
     static let viewLayouts: [IslandView: ViewLayout] = [
         // Home is the reference: height 150
         .overview:  ViewLayout(height: 160, botX: 68,  botY: nil, botDiameter: 58, agentMode: .pills),
