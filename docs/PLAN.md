@@ -1,5 +1,22 @@
 # ORBEX — Plan de acción y avance
 
+<h1 align="center">🟢 ETAPA 4 · Orbi habla + modo inteligente: 0 %</h1>
+
+# Etapa 4 — Orbi responde con voz natural y "modo inteligente"
+
+Pedido del dueño (30/09/2026): que Orbi **responda hablando** ("hola" → "¡Hola! ¿Cómo estás?") con una voz
+natural como la de OpenJarvis (Kokoro, Apache 2.0), no robótica; y "Orbi, activar modo inteligente" despliega
+un panel con toda la interacción al estilo fullstack-agent (cara que escucha/piensa/habla, conversación,
+memoria), con diseño de Orbi. fullstack-agent es AGPL: se toma solo la idea, sin copiar código.
+
+- [ ] W1 · Voz de salida: Kokoro local (voz en español, `ef_dora`) + Cartesia opcional (clave en Keychain) + voz de macOS de respaldo
+- [ ] W2 · Conversación: Orbi contesta hablando (charla corta, confirma acciones), comando "activar/desactivar modo inteligente"
+- [ ] W3 · Panel "modo inteligente": cara grande de Orbi, conversación en vivo, memoria, acciones, micrófono
+- [ ] W4 · Orbi hablando: animación sincronizada con la voz (brillo y ondas al ritmo)
+- [ ] W5 · Verificación y docs
+
+---
+
 <h1 align="center">🟣 ETAPA 3 · Limpieza, arreglos y voz: 100 % ✅</h1>
 
 <h3 align="center">🛠️ Listo: bajar e instalar con scripts/actualizar.sh (ver INSTALAR.md) · 90 archivos OK · 149/149 pruebas</h3>
