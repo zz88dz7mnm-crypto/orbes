@@ -61,6 +61,7 @@ final class KeychainStore: @unchecked Sendable {
         "stripe-api-key",
         "calcom-api-key",
         "notion-api-key",
+        "cartesia-api-key",   // voz de Orbi en la nube (opcional)
     ]
 
     private init() {

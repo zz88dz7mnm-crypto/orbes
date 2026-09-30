@@ -158,10 +158,9 @@ final class KokoroEngine: @unchecked Sendable {
     /// Lee una línea JSON del helper. Si pasa `timeout`, mata el proceso (y así se corta la lectura).
     private func readReply(timeout: TimeInterval) throws -> [String: Any] {
         guard let stdout, let process else { throw Failure.helperDied("sin proceso") }
-        var timedOut = false
-        let lock = NSLock()
+        let flag = TimeoutFlag()
         let watchdog = DispatchWorkItem {
-            lock.lock(); timedOut = true; lock.unlock()
+            flag.set()
             if process.isRunning { process.terminate() }
         }
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: watchdog)
@@ -179,12 +178,18 @@ final class KokoroEngine: @unchecked Sendable {
             }
             let chunk = stdout.availableData
             if chunk.isEmpty {
-                lock.lock(); let late = timedOut; lock.unlock()
                 kill()
-                throw late ? Failure.timeout : Failure.helperDied("se cerró (ver \(OrbiVoicePaths.log.path))")
+                throw flag.isSet ? Failure.timeout : Failure.helperDied("se cerró (ver \(OrbiVoicePaths.log.path))")
             }
             buffer.append(chunk)
         }
+    }
+
+    private final class TimeoutFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+        func set() { lock.lock(); value = true; lock.unlock() }
+        var isSet: Bool { lock.lock(); defer { lock.unlock() }; return value }
     }
 
     private func kill() {

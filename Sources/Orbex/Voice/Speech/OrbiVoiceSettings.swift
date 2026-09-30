@@ -40,10 +40,15 @@ enum OrbiVoiceSettings {
     static let defaultCartesiaVoice = "a0e99841-438c-4a64-b679-ae501e7d6091"
 
     /// Voces de Kokoro en español.
-    static let kokoroVoices: [(id: String, name: String)] = [
-        ("ef_dora", "Dora · mujer"),
-        ("em_alex", "Alex · hombre"),
-        ("em_santa", "Santa · hombre, grave"),
+    struct KokoroVoice: Identifiable, Hashable {
+        let id: String
+        let name: String
+    }
+
+    static let kokoroVoices: [KokoroVoice] = [
+        KokoroVoice(id: "ef_dora", name: "Dora · mujer"),
+        KokoroVoice(id: "em_alex", name: "Alex · hombre"),
+        KokoroVoice(id: "em_santa", name: "Santa · hombre, grave"),
     ]
 
     private static var d: UserDefaults { .standard }

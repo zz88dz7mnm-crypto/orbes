@@ -94,6 +94,8 @@ info "Binarios en: $BIN_PATH"
 step "Armando $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
+# Voz natural de Orbi (Kokoro): el helper y su instalador viajan dentro de la app.
+cp "$ROOT/scripts/orbex-tts.py" "$ROOT/scripts/instalar-voz.sh" "$APP/Contents/Resources/" 2>/dev/null || true
 
 cp "$BIN_PATH/$EXECUTABLE" "$APP/Contents/MacOS/$EXECUTABLE"
 cp "$BIN_PATH/$HOOK" "$APP/Contents/Helpers/$HOOK"
