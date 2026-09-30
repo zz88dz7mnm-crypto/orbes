@@ -1,6 +1,6 @@
 # ORBEX — Plan de acción y avance
 
-<h1 align="center">🟣 ETAPA 3 · Limpieza, arreglos y voz: 0 %</h1>
+<h1 align="center">🟣 ETAPA 3 · Limpieza, arreglos y voz: 20 %</h1>
 
 <h3 align="center">🛠️ Ahora mismo: V1 limpieza · V2 arreglos · V3/V4 voz (en paralelo)</h3>
 
@@ -15,7 +15,7 @@ responder hablando), con color y gesto propios mientras escucha.
 - [ ] V2 · Arreglos de la isla: clic afuera cierra; forma e íconos sin saltos
 - [ ] V3 · Voz (lógica, OrbexCore): palabra de activación con variantes, extracción del pedido, fin de frase, con pruebas
 - [ ] V4 · Voz (app): escucha en el dispositivo (Speech), permisos en el primer uso, pedido → comandos de ORBEX o Claude, Configuración › Voz
-- [ ] V5 · Gesto y color de escucha (magenta #E040FB): ORBEX pone la mano en la oreja, ondas según tu voz
+- [x] V5 · Gesto y color de escucha (magenta #E040FB): ORBEX pone la mano en la oreja, ondas según tu voz
 - [ ] V6 · Verificación (sintaxis, pruebas, símbolos) y docs
 
 ---
