@@ -236,6 +236,7 @@ public enum VoiceReplies {
             }
         s = lines.joined(separator: " ")
         s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: " ([,.;:!?…])", with: "$1", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Hasta `maxSentences` oraciones.

@@ -47,7 +47,7 @@ public struct WakeWordMatcher: Sendable {
     /// Palabras reales parecidas a un nombre que nunca activan por parecido (sí si están tal cual en `names`).
     static let lookalikes: Set<String> = [
         "orbit", "orbita", "orbitas", "orbital", "orbitar", "orbits", "orbitan", "orbitando", "orgy", "orly", "ores",
-        "oribi", "ovis", "orbe",
+        "oribi", "ovis",
     ]
 
     /// Saludos que pueden ir antes del nombre ("hola Orbi", "oye, che, Orbex").
@@ -188,10 +188,12 @@ public struct WakeWordMatcher: Sendable {
     /// pedido de 3+ letras pegado). `nil` si la palabra no empieza con un nombre.
     func gluedSplit(_ word: Word) -> Substring.Index? {
         guard word.key.count >= 8, !Self.lookalikes.contains(word.key) else { return nil }
-        for (v, extra) in zip(Self.variants(word.key), [0, 1]) {
+        let hasH = word.key.count > 1 && word.key.hasPrefix("h")
+        let options: [(key: String, skip: Int)] = hasH ? [(word.key, 0), (String(word.key.dropFirst()), 1)] : [(word.key, 0)]
+        for (v, skip) in options {
             guard let name = keys.filter({ $0.count >= 5 && v.hasPrefix($0) && v.count - $0.count >= 3 })
                 .max(by: { $0.count < $1.count }) else { continue }
-            let letters = name.count + (Self.variants(word.key).count > 1 ? extra : 0)
+            let letters = name.count + skip
             var seen = 0
             var i = word.raw.startIndex
             while i < word.raw.endIndex {
