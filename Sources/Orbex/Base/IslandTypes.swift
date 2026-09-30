@@ -25,6 +25,8 @@ enum BotState: String, CaseIterable {
     case idle, working, thinking, searching
     case approval, question, error, finished
     case ratelimit, sleeping, dizzy
+    /// ORBEX: escuchando un pedido por voz (color propio: magenta #E040FB).
+    case listening
 }
 
 // MARK: - Bot Emote

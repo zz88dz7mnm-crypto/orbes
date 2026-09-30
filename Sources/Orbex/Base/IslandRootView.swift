@@ -328,6 +328,7 @@ struct BotPlacement: View {
         case .error:     return Color(hex: "#F4505E")
         case .finished:  return Color(hex: "#34D399")
         case .ratelimit: return Color(hex: "#F59E0B")
+        case .listening: return Color(hex: "#E040FB")
         default:         return Color.white
         }
     }
