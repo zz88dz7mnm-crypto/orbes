@@ -147,7 +147,7 @@ responde hablando: se pone **magenta**, lleva la mano a la oreja mientras te esc
   Sistema › Accesibilidad › Contenido leído). Configuración › **Voz de Orbi**: motor, voz, velocidad, "Probar".
 - **Charla:** "Orbi, hola" → "¡Hola! ¿Cómo estás?". Después de responder te sigue escuchando 6 s sin repetir el
   nombre. "Orbi, pará" la calla.
-- **"Orbi, activar modo inteligente"**: se despliega el panel grande (cara de Orbi, conversación, memoria,
+- **"Orbi, activar modo inteligente"**, el atajo **⌃⌥I** o el menú de la barra › Modo inteligente: se despliega el panel grande (cara de Orbi, conversación, memoria,
   acciones, micrófono). "Orbi, desactivar modo inteligente" o Esc lo cierra.
 - **Si no se activa con el nombre:** Configuración › Voz → prendé **Siempre atento**; mirá "Lo que escucho
   ahora" y, si entiende otra palabra, tocá "Usar «…» como nombre".

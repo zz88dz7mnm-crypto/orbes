@@ -104,6 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(makeItem("Abrir ORBEX", #selector(openIsland), key: "o"))
         menu.addItem(makeItem("Asistente", #selector(openAssistant), key: "a"))
+        menu.addItem(makeItem("Modo inteligente", #selector(toggleSmartMode), key: "i"))
         menu.addItem(makeItem("Modo reloj", #selector(toggleClock), key: "c"))
         menu.addItem(.separator())
 
@@ -138,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openIsland() { model.perform("open") }
     @objc private func openAssistant() { model.perform("assistant") }
+    @objc private func toggleSmartMode() { SmartModeController.shared.toggle() }
     @objc private func toggleClock() { model.perform("clock") }
     @objc private func openSettings() { SettingsWindowController.shared.show() }
     @objc private func showWelcome() { FirstRunWindowController.shared.show() }

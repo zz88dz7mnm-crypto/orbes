@@ -127,6 +127,10 @@ enum OrbexHotKeys {
         center.register(id: "settings", keyCode: UInt32(kVK_ANSI_Comma), modifiers: mods) {
             AppModel.shared.perform("settings")
         }
+        // ⌃⌥I: modo inteligente (panel grande de Orbi), también sin usar la voz.
+        center.register(id: "smart", keyCode: UInt32(kVK_ANSI_I), modifiers: mods) {
+            MainActor.assumeIsolated { SmartModeController.shared.toggle() }
+        }
     }
 
     @MainActor
